@@ -8,7 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from .routes import sessions
 
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("moonai")
 
 
 def create_app() -> FastAPI:
@@ -16,10 +20,9 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:[0-9]+)?",
         allow_credentials=True,
-        allow_methods=["*"]
-        ,
+        allow_methods=["*"],
         allow_headers=["*"],
     )
 

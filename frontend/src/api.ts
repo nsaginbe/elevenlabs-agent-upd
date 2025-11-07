@@ -4,6 +4,8 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
 async function request<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${input}`, {
+    mode: "cors",
+    credentials: "include",
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
     ...init
   });

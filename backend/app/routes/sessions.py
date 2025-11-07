@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -19,6 +20,7 @@ from .. import elevenlabs_service
 
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
+logger = logging.getLogger("moonai.api.sessions")
 
 
 create_tables(engine)
@@ -28,6 +30,11 @@ create_tables(engine)
 def create_session(
     payload: TrainingSessionCreate, db: Session = Depends(get_db)
 ):
+    logger.info(
+        "Creating training session for manager '%s' (difficulty=%s)",
+        payload.manager_name,
+        payload.difficulty_level or "auto",
+    )
     session_prompt = build_session_prompt(
         company_description=payload.company_description,
         difficulty_level=payload.difficulty_level,
@@ -37,6 +44,14 @@ def create_session(
         company_description=payload.company_description,
         difficulty_level=payload.difficulty_level,
         system_prompt=session_prompt,
+    )
+
+    logger.info(
+        "Session %s: obtained conversation_id=%s (agent_id=%s, ws_url_prefix=%s)",
+        payload.manager_name,
+        conversation_id,
+        agent_id or "<placeholder>",
+        signed_ws_url[:60] + "..." if signed_ws_url else "<none>",
     )
 
     training_session = TrainingSession(
@@ -76,6 +91,7 @@ def complete_session(
     payload: CompleteSessionRequest,
     db: Session = Depends(get_db),
 ):
+    logger.info("Completing training session %s", session_id)
     session = db.get(TrainingSession, session_id)
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")

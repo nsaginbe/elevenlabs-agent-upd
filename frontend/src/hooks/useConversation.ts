@@ -68,15 +68,18 @@ export function useConversation() {
   const connectWebsocket = useCallback(async (signedUrl: string) => {
     return new Promise<void>((resolve, reject) => {
       try {
+        console.info("[Conversation] Opening WebSocket", { url: signedUrl });
         const socket = new WebSocket(signedUrl);
         websocketRef.current = socket;
 
         socket.onopen = () => {
+          console.info("[Conversation] WebSocket connected");
           setConnectionStatus("connected");
           resolve();
         };
 
         socket.onmessage = (event) => {
+          console.debug("[Conversation] Incoming message", event.data);
           if (typeof event.data === "string") {
             try {
               const payload = JSON.parse(event.data);
@@ -94,6 +97,8 @@ export function useConversation() {
                 });
               } else if (payload.type === "error") {
                 setError(payload.message ?? "Error from ElevenLabs conversation");
+              } else {
+                console.warn("[Conversation] Unhandled message type", payload);
               }
             } catch (err) {
               console.error("Failed to parse websocket message", err);
@@ -102,15 +107,17 @@ export function useConversation() {
         };
 
         socket.onerror = (event) => {
-          console.error("WebSocket error", event);
+          console.error("[Conversation] WebSocket error", event);
           setError("Ошибка соединения с ElevenLabs WebSocket");
           setConnectionStatus("error");
         };
 
         socket.onclose = () => {
+          console.info("[Conversation] WebSocket closed");
           setConnectionStatus("stopped");
         };
       } catch (err) {
+        console.error("[Conversation] Failed to open WebSocket", err);
         reject(err);
       }
     });
@@ -118,9 +125,11 @@ export function useConversation() {
 
   const startStreamingAudio = useCallback(async () => {
     if (!websocketRef.current) {
+      console.warn("[Conversation] Attempted to start audio before websocket ready");
       return;
     }
 
+    console.info("[Conversation] Requesting microphone access");
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     mediaStreamRef.current = stream;
 
@@ -152,11 +161,18 @@ export function useConversation() {
       );
     };
 
+    recorder.onerror = (event) => {
+      console.error("[Conversation] MediaRecorder error", event);
+      setError("Ошибка записи аудио");
+    };
+
+    console.info("[Conversation] Starting audio stream");
     recorder.start(250);
   }, []);
 
   const startSession = useCallback(
     async (form: StartSessionForm) => {
+      console.info("[Conversation] Starting session", form);
       setIsLoading(true);
       resetConversation();
       setConnectionStatus("connecting");
@@ -164,6 +180,7 @@ export function useConversation() {
       try {
         const result = await createTrainingSession(form);
         setSessionData(result);
+        console.info("[Conversation] Session created", result);
         await connectWebsocket(result.signed_ws_url);
         await startStreamingAudio();
       } catch (err) {
@@ -182,6 +199,7 @@ export function useConversation() {
   );
 
   const stopSession = useCallback(() => {
+    console.info("[Conversation] Stopping session");
     stopRecording();
     closeWebsocket();
   }, [closeWebsocket, stopRecording]);
@@ -195,6 +213,7 @@ export function useConversation() {
     if (!sessionData) {
       return;
     }
+    console.info("[Conversation] Completing session", sessionData.session.id);
     setIsLoading(true);
     try {
       const completed = await completeTrainingSession(
@@ -202,6 +221,7 @@ export function useConversation() {
         conversationLog
       );
       setAnalysis(completed);
+      console.info("[Conversation] Analysis received", completed.id, completed.score);
       return completed;
     } catch (err) {
       console.error(err);
@@ -212,6 +232,7 @@ export function useConversation() {
       );
       throw err;
     } finally {
+      console.info("[Conversation] Complete session finished");
       setIsLoading(false);
     }
   }, [conversationLog, sessionData]);

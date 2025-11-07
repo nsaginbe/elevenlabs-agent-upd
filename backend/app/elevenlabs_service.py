@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import uuid
+import logging
 from typing import Any, Dict, Tuple
 
 import httpx
@@ -15,6 +16,9 @@ ELEVENLABS_AGENT_ID = os.getenv("ELEVENLABS_AGENT_ID")
 ELEVENLABS_BASE_URL = os.getenv(
     "ELEVENLABS_BASE_URL", "https://api.elevenlabs.io"
 )
+
+
+logger = logging.getLogger("moonai.elevenlabs")
 
 
 class ElevenLabsError(RuntimeError):
@@ -64,10 +68,21 @@ def request_signed_ws_url(
 
     url = f"{ELEVENLABS_BASE_URL.rstrip('/')}/v1/convai/conversations"
 
+    logger.info(
+        "Requesting ElevenLabs conversation (agent_id=%s, overrides_keys=%s)",
+        agent_id,
+        list(overrides.keys()) if overrides else [],
+    )
+
     with httpx.Client(timeout=15.0) as client:
         response = client.post(url, json=payload, headers=headers)
 
     if response.status_code >= 400:
+        logger.error(
+            "ElevenLabs conversation creation failed: code=%s body=%s",
+            response.status_code,
+            response.text,
+        )
         raise ElevenLabsError(
             f"Failed to create conversation: {response.status_code} {response.text}"
         )
@@ -79,6 +94,12 @@ def request_signed_ws_url(
         data.get("client_secret", {}).get("value")
         or data.get("signed_url")
         or data.get("ws_url")
+    )
+
+    logger.info(
+        "Received ElevenLabs conversation response (conversation_id=%s, has_signed_url=%s)",
+        conversation_id,
+        bool(signed_url),
     )
 
     if not conversation_id or not signed_url:
@@ -93,6 +114,9 @@ def generate_placeholder_signed_url() -> Tuple[str, str]:
     """Fallback helper for development without ElevenLabs credentials."""
     conversation_id = f"local-{uuid.uuid4()}"
     ws_url = f"wss://example.invalid/convai/{conversation_id}"
+    logger.warning(
+        "Generated placeholder signed URL (conversation_id=%s)", conversation_id
+    )
     return conversation_id, ws_url
 
 
@@ -116,7 +140,8 @@ def create_conversation_session(
             conversation_id, signed_url = request_signed_ws_url(
                 agent_id=agent_id, overrides=overrides
             )
-        except ElevenLabsError:
+        except ElevenLabsError as exc:
+            logger.exception("Falling back to placeholder WS URL due to ElevenLabs error")
             conversation_id, signed_url = generate_placeholder_signed_url()
 
     return agent_id or "", conversation_id, signed_url
