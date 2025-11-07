@@ -315,9 +315,6 @@ if __name__ == "__main__":
 
 
 .env:
-OPENAI_API_KEY='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'
-ELEVENLABS_AGENT_ID='agent_2301k97hmja5fqhvbm1dsnd0dw62'
-ELEVENLABS_API_KEY='sk_6d16e94302798e842bc619f14cb0f30ed0fc76d043ba6a97'
 
 DATABASE_URL=sqlite:///./sales_training.db
 
