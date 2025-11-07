@@ -22,6 +22,63 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
+const TARGET_SAMPLE_RATE = 16000;
+
+declare global {
+  interface Window {
+    webkitAudioContext?: typeof AudioContext;
+  }
+}
+
+function downsampleBuffer(buffer: Float32Array, inputSampleRate: number, outputSampleRate: number): Float32Array {
+  if (outputSampleRate === inputSampleRate) {
+    return buffer;
+  }
+
+  const sampleRateRatio = inputSampleRate / outputSampleRate;
+  const newLength = Math.round(buffer.length / sampleRateRatio);
+  const result = new Float32Array(newLength);
+
+  for (let i = 0; i < newLength; i += 1) {
+    const start = Math.floor(i * sampleRateRatio);
+    const end = Math.floor((i + 1) * sampleRateRatio);
+    let sum = 0;
+    let count = 0;
+
+    for (let j = start; j < end && j < buffer.length; j += 1) {
+      sum += buffer[j];
+      count += 1;
+    }
+
+    result[i] = count > 0 ? sum / count : 0;
+  }
+
+  return result;
+}
+
+function floatTo16BitPCM(buffer: Float32Array): Int16Array {
+  const result = new Int16Array(buffer.length);
+  for (let i = 0; i < buffer.length; i += 1) {
+    const sample = Math.max(-1, Math.min(1, buffer[i]));
+    result[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+  }
+  return result;
+}
+
+function createAudioContext(): AudioContext {
+  if (typeof window === "undefined") {
+    throw new Error("AudioContext is not available in this environment");
+  }
+
+  const AudioContextConstructor = (window.AudioContext || window.webkitAudioContext) as typeof AudioContext | undefined;
+
+  if (!AudioContextConstructor) {
+    throw new Error("AudioContext is not supported in this browser");
+  }
+
+  return new AudioContextConstructor();
+}
+
 export function useConversation() {
   const [sessionData, setSessionData] = useState<StartSessionResult | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("idle");
@@ -31,8 +88,10 @@ export function useConversation() {
   const [isLoading, setIsLoading] = useState(false);
 
   const websocketRef = useRef<WebSocket | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const processorNodeRef = useRef<ScriptProcessorNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
 
   const resetConversation = useCallback(() => {
     setMessages([]);
@@ -45,8 +104,20 @@ export function useConversation() {
   }, []);
 
   const stopRecording = useCallback(() => {
-    mediaRecorderRef.current?.stop();
-    mediaRecorderRef.current = null;
+    processorNodeRef.current?.disconnect();
+    processorNodeRef.current = null;
+
+    gainNodeRef.current?.disconnect();
+    gainNodeRef.current = null;
+
+    if (audioContextRef.current) {
+      const context = audioContextRef.current;
+      audioContextRef.current = null;
+      context.close().catch((closeError) => {
+        console.warn("[Conversation] AudioContext close error", closeError);
+      });
+    }
+
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     mediaStreamRef.current = null;
   }, []);
@@ -65,8 +136,10 @@ export function useConversation() {
     };
   }, [closeWebsocket, stopRecording]);
 
-  const connectWebsocket = useCallback(async (signedUrl: string) => {
+  const connectWebsocket = useCallback(async (sessionResult: StartSessionResult) => {
+    const { signed_ws_url: signedUrl, conversation_config_override, dynamic_variables } = sessionResult;
     return new Promise<void>((resolve, reject) => {
+      let settled = false;
       try {
         console.info("[Conversation] Opening WebSocket", { url: signedUrl });
         const socket = new WebSocket(signedUrl);
@@ -74,6 +147,28 @@ export function useConversation() {
 
         socket.onopen = () => {
           console.info("[Conversation] WebSocket connected");
+          settled = true;
+          try {
+            const initiationPayload: Record<string, unknown> = {
+              type: "conversation_initiation_client_data",
+              source_info: {
+                source: "python_sdk",
+                version: "2.22.0"
+              },
+              custom_llm_extra_body: null
+            };
+
+            if (conversation_config_override && Object.keys(conversation_config_override).length > 0) {
+              initiationPayload.conversation_config_override = conversation_config_override;
+            }
+
+            initiationPayload.dynamic_variables = dynamic_variables && Object.keys(dynamic_variables).length > 0 ? dynamic_variables : {};
+
+            console.info("[Conversation] Sending initiation payload", initiationPayload);
+            socket.send(JSON.stringify(initiationPayload));
+          } catch (sendError) {
+            console.error("[Conversation] Failed to send initiation payload", sendError);
+          }
           setConnectionStatus("connected");
           resolve();
         };
@@ -83,7 +178,16 @@ export function useConversation() {
           if (typeof event.data === "string") {
             try {
               const payload = JSON.parse(event.data);
-              if (payload.type === "agent_response" || payload.type === "response") {
+              if (payload.type === "conversation_initiation_metadata") {
+                console.info("[Conversation] Conversation metadata", payload);
+              } else if (payload.type === "ping" && payload.ping_event?.event_id) {
+                const pong = {
+                  type: "pong",
+                  event_id: payload.ping_event.event_id
+                };
+                console.debug("[Conversation] Responding with pong", pong);
+                socket.send(JSON.stringify(pong));
+              } else if (payload.type === "agent_response" || payload.type === "response") {
                 appendMessage({
                   speaker: "agent",
                   text: payload.text ?? payload.response ?? JSON.stringify(payload),
@@ -110,14 +214,27 @@ export function useConversation() {
           console.error("[Conversation] WebSocket error", event);
           setError("Ошибка соединения с ElevenLabs WebSocket");
           setConnectionStatus("error");
+          if (!settled) {
+            settled = true;
+            reject(new Error("WebSocket error"));
+          }
         };
 
-        socket.onclose = () => {
-          console.info("[Conversation] WebSocket closed");
+        socket.onclose = (event) => {
+          console.info("[Conversation] WebSocket closed", {
+            code: event.code,
+            reason: event.reason,
+            wasClean: event.wasClean
+          });
           setConnectionStatus("stopped");
+          if (!settled) {
+            settled = true;
+            reject(new Error("WebSocket closed before initialization"));
+          }
         };
       } catch (err) {
         console.error("[Conversation] Failed to open WebSocket", err);
+        settled = true;
         reject(err);
       }
     });
@@ -130,44 +247,69 @@ export function useConversation() {
     }
 
     console.info("[Conversation] Requesting microphone access");
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        sampleRate: TARGET_SAMPLE_RATE,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    });
     mediaStreamRef.current = stream;
 
-    const recorder = new MediaRecorder(stream, {
-      mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : "audio/webm"
-    });
+    const audioContext = createAudioContext();
+    audioContextRef.current = audioContext;
+    await audioContext.resume();
 
-    mediaRecorderRef.current = recorder;
+    const source = audioContext.createMediaStreamSource(stream);
+    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+    const gain = audioContext.createGain();
+    gain.gain.value = 0;
 
-    recorder.ondataavailable = async (event) => {
+    processorNodeRef.current = processor;
+    gainNodeRef.current = gain;
+
+    let chunkCounter = 0;
+
+    processor.onaudioprocess = (event) => {
       if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
         return;
       }
-      if (!event.data || event.data.size === 0) {
+
+      const inputBuffer = event.inputBuffer.getChannelData(0);
+      if (!inputBuffer) {
         return;
       }
 
-      const buffer = await event.data.arrayBuffer();
-      const audio = arrayBufferToBase64(buffer);
+      const downsampled = downsampleBuffer(inputBuffer, audioContext.sampleRate, TARGET_SAMPLE_RATE);
+      const pcmData = floatTo16BitPCM(downsampled);
+      const audioChunk = arrayBufferToBase64(pcmData.buffer);
+
+      if (chunkCounter % 10 === 0) {
+        console.debug("[Conversation] Sending audio chunk", {
+          chunkIndex: chunkCounter,
+          pcmLength: pcmData.length,
+          base64Length: audioChunk.length
+        });
+      }
+      chunkCounter += 1;
+
       websocketRef.current.send(
         JSON.stringify({
-          type: "audio_chunk",
-          audio,
-          encoding: "base64",
-          format: "webm-opus"
+          user_audio_chunk: audioChunk
         })
       );
     };
 
-    recorder.onerror = (event) => {
-      console.error("[Conversation] MediaRecorder error", event);
-      setError("Ошибка записи аудио");
-    };
+    source.connect(processor);
+    processor.connect(gain);
+    gain.connect(audioContext.destination);
 
-    console.info("[Conversation] Starting audio stream");
-    recorder.start(250);
+    console.info("[Conversation] Audio context initialized", {
+      inputSampleRate: audioContext.sampleRate,
+      targetSampleRate: TARGET_SAMPLE_RATE
+    });
   }, []);
 
   const startSession = useCallback(
@@ -181,7 +323,7 @@ export function useConversation() {
         const result = await createTrainingSession(form);
         setSessionData(result);
         console.info("[Conversation] Session created", result);
-        await connectWebsocket(result.signed_ws_url);
+        await connectWebsocket(result);
         await startStreamingAudio();
       } catch (err) {
         console.error(err);

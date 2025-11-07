@@ -1,21 +1,17 @@
 from __future__ import annotations
 
 import os
-import uuid
 import logging
 from typing import Any, Dict, Tuple
 
-import httpx
 from dotenv import load_dotenv
+from elevenlabs import ElevenLabs
 
 load_dotenv()
 
 
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 ELEVENLABS_AGENT_ID = os.getenv("ELEVENLABS_AGENT_ID")
-ELEVENLABS_BASE_URL = os.getenv(
-    "ELEVENLABS_BASE_URL", "https://api.elevenlabs.io"
-)
 
 
 logger = logging.getLogger("moonai.elevenlabs")
@@ -49,75 +45,47 @@ def build_conversation_override(
     }
 
 
-def request_signed_ws_url(
-    *,
-    agent_id: str,
-    overrides: Dict[str, Any] | None = None,
-) -> Tuple[str, str]:
-    if not ELEVENLABS_API_KEY:
-        raise ElevenLabsError("ELEVENLABS_API_KEY is not configured")
+_elevenlabs_client: ElevenLabs | None = None
 
-    payload: Dict[str, Any] = {"agent_id": agent_id, "with_client_token": True}
-    if overrides:
-        payload["conversation_config_override"] = overrides
 
-    headers = {
-        "xi-api-key": ELEVENLABS_API_KEY,
-        "Content-Type": "application/json",
-    }
+def _get_elevenlabs_client() -> ElevenLabs:
+    global _elevenlabs_client
+    if _elevenlabs_client is None:
+        if not ELEVENLABS_API_KEY:
+            raise ElevenLabsError("ELEVENLABS_API_KEY is not configured")
+        _elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+    return _elevenlabs_client
 
-    url = f"{ELEVENLABS_BASE_URL.rstrip('/')}/v1/convai/conversations"
 
-    logger.info(
-        "Requesting ElevenLabs conversation (agent_id=%s, overrides_keys=%s)",
-        agent_id,
-        list(overrides.keys()) if overrides else [],
+def request_signed_ws_url(*, agent_id: str) -> Tuple[str | None, str]:
+    client = _get_elevenlabs_client()
+    response = client.conversational_ai.conversations.get_signed_url(
+        agent_id=agent_id,
+        include_conversation_id=True,
     )
 
-    with httpx.Client(timeout=15.0) as client:
-        response = client.post(url, json=payload, headers=headers)
+    signed_url = response.signed_url
+    conversation_id = None
 
-    if response.status_code >= 400:
-        logger.error(
-            "ElevenLabs conversation creation failed: code=%s body=%s",
-            response.status_code,
-            response.text,
-        )
-        raise ElevenLabsError(
-            f"Failed to create conversation: {response.status_code} {response.text}"
-        )
+    if hasattr(response, "model_extra") and response.model_extra:
+        conversation_id = response.model_extra.get("conversation_id")
 
-    data = response.json()
-
-    conversation_id = data.get("conversation", {}).get("id") or data.get("conversation_id")
-    signed_url = (
-        data.get("client_secret", {}).get("value")
-        or data.get("signed_url")
-        or data.get("ws_url")
-    )
-
-    logger.info(
-        "Received ElevenLabs conversation response (conversation_id=%s, has_signed_url=%s)",
-        conversation_id,
-        bool(signed_url),
-    )
-
-    if not conversation_id or not signed_url:
-        raise ElevenLabsError(
-            "Unexpected response when requesting ElevenLabs signed URL"
-        )
+    if not signed_url:
+        raise ElevenLabsError("Signed URL missing from ElevenLabs response")
 
     return conversation_id, signed_url
 
 
-def generate_placeholder_signed_url() -> Tuple[str, str]:
-    """Fallback helper for development without ElevenLabs credentials."""
-    conversation_id = f"local-{uuid.uuid4()}"
-    ws_url = f"wss://example.invalid/convai/{conversation_id}"
-    logger.warning(
-        "Generated placeholder signed URL (conversation_id=%s)", conversation_id
-    )
-    return conversation_id, ws_url
+def build_dynamic_variables(
+    company_description: str | None,
+    difficulty_level: str | None,
+) -> Dict[str, Any]:
+    variables: Dict[str, Any] = {}
+    if company_description:
+        variables["product_description"] = company_description.strip()
+    if difficulty_level:
+        variables["difficulty_level"] = difficulty_level.strip()
+    return variables
 
 
 def create_conversation_session(
@@ -125,24 +93,23 @@ def create_conversation_session(
     company_description: str | None,
     difficulty_level: str | None,
     system_prompt: str,
-) -> Tuple[str, str, str]:
+) -> Tuple[str, str | None, str, Dict[str, Any], Dict[str, Any]]:
     agent_id = ELEVENLABS_AGENT_ID
     overrides = build_conversation_override(
         company_description=company_description,
         difficulty_level=difficulty_level,
         system_prompt=system_prompt,
     )
+    dynamic_variables = build_dynamic_variables(
+        company_description=company_description,
+        difficulty_level=difficulty_level,
+    )
 
-    if not agent_id:
-        conversation_id, signed_url = generate_placeholder_signed_url()
-    else:
-        try:
-            conversation_id, signed_url = request_signed_ws_url(
-                agent_id=agent_id, overrides=overrides
-            )
-        except ElevenLabsError as exc:
-            logger.exception("Falling back to placeholder WS URL due to ElevenLabs error")
-            conversation_id, signed_url = generate_placeholder_signed_url()
+    if not agent_id or not ELEVENLABS_API_KEY:
+        logger.error("ElevenLabs credentials missing; cannot create conversation session")
+        raise ElevenLabsError("Missing ELEVENLABS_AGENT_ID or ELEVENLABS_API_KEY")
 
-    return agent_id or "", conversation_id, signed_url
+    conversation_id, signed_url = request_signed_ws_url(agent_id=agent_id)
+
+    return agent_id, conversation_id, signed_url, overrides, dynamic_variables
 

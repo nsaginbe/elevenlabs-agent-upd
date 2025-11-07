@@ -11,7 +11,13 @@ async function request<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    const message = await response.text();
+    let message: string | null = null;
+    try {
+      const data = await response.clone().json();
+      message = typeof data?.detail === "string" ? data.detail : JSON.stringify(data);
+    } catch (jsonError) {
+      message = await response.text();
+    }
     throw new Error(message || "Request failed");
   }
 

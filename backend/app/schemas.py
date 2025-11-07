@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
@@ -52,7 +52,9 @@ class ConversationAnalysis(BaseModel):
 class StartSessionResponse(BaseModel):
     session: TrainingSessionResponse
     signed_ws_url: str
-    conversation_id: str
+    conversation_id: Optional[str]
     session_system_prompt: str
+    conversation_config_override: Optional[dict[str, Any]] = None
+    dynamic_variables: Optional[dict[str, Any]] = None
 
 

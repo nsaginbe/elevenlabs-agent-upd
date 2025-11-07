@@ -40,11 +40,24 @@ def create_session(
         difficulty_level=payload.difficulty_level,
     )
 
-    agent_id, conversation_id, signed_ws_url = elevenlabs_service.create_conversation_session(
-        company_description=payload.company_description,
-        difficulty_level=payload.difficulty_level,
-        system_prompt=session_prompt,
-    )
+    try:
+        (
+            agent_id,
+            conversation_id,
+            signed_ws_url,
+            overrides,
+            dynamic_variables,
+        ) = elevenlabs_service.create_conversation_session(
+            company_description=payload.company_description,
+            difficulty_level=payload.difficulty_level,
+            system_prompt=session_prompt,
+        )
+    except Exception as exc:
+        logger.exception("Failed to obtain ElevenLabs signed WS URL")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"ElevenLabs initialization failed: {exc}",
+        )
 
     logger.info(
         "Session %s: obtained conversation_id=%s (agent_id=%s, ws_url_prefix=%s)",
@@ -72,6 +85,8 @@ def create_session(
         signed_ws_url=signed_ws_url,
         conversation_id=conversation_id,
         session_system_prompt=session_prompt,
+        conversation_config_override=overrides,
+        dynamic_variables=dynamic_variables or None,
     )
 
     return response_payload

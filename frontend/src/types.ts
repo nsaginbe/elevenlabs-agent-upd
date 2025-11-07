@@ -32,7 +32,9 @@ export interface ConversationMessage {
 export interface StartSessionResult {
   session: TrainingSession;
   signed_ws_url: string;
-  conversation_id: string;
+  conversation_id: string | null;
   session_system_prompt: string;
+  conversation_config_override?: Record<string, unknown> | null;
+  dynamic_variables?: Record<string, unknown> | null;
 }
 
