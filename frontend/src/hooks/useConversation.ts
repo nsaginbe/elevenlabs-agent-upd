@@ -90,8 +90,11 @@ export function useConversation() {
   const websocketRef = useRef<WebSocket | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const playbackAudioContextRef = useRef<AudioContext | null>(null);
   const processorNodeRef = useRef<ScriptProcessorNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
+  const audioQueueRef = useRef<ArrayBuffer[]>([]);
+  const isPlayingAudioRef = useRef(false);
 
   const resetConversation = useCallback(() => {
     setMessages([]);
@@ -102,6 +105,135 @@ export function useConversation() {
   const appendMessage = useCallback((message: ConversationMessage) => {
     setMessages((prev) => [...prev, message]);
   }, []);
+
+  // Инициализация AudioContext для воспроизведения
+  const getPlaybackAudioContext = useCallback(() => {
+    if (!playbackAudioContextRef.current) {
+      playbackAudioContextRef.current = createAudioContext();
+    }
+    return playbackAudioContextRef.current;
+  }, []);
+
+  // Воспроизведение аудио из ArrayBuffer
+  const playPCMAudio = useCallback(async (audioData: ArrayBuffer | ArrayBufferLike) => {
+    // Конвертируем в ArrayBuffer если нужно
+    let buffer: ArrayBuffer;
+    if (audioData instanceof ArrayBuffer) {
+      buffer = audioData;
+    } else {
+      // Для SharedArrayBuffer или TypedArray - создаем новый ArrayBuffer и копируем
+      const uint8 = new Uint8Array(audioData);
+      const newBuffer = new ArrayBuffer(uint8.length);
+      new Uint8Array(newBuffer).set(uint8);
+      buffer = newBuffer;
+    }
+    
+    if (buffer.byteLength === 0) {
+      console.warn("[Conversation] Empty audio buffer received");
+      return;
+    }
+    
+    try {
+      const context = getPlaybackAudioContext();
+      await context.resume();
+
+      // Сначала пробуем декодировать как сжатый аудио (MP3, AAC и т.д.)
+      try {
+        const audioBuffer = await context.decodeAudioData(buffer.slice(0));
+        const source = context.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(context.destination);
+        source.start(0);
+        
+        console.info("[Conversation] Playing decoded audio (MP3/AAC/etc)", {
+          duration: audioBuffer.duration.toFixed(2) + "s",
+          sampleRate: audioBuffer.sampleRate,
+          channels: audioBuffer.numberOfChannels,
+          bufferSize: buffer.byteLength
+        });
+        return;
+      } catch (decodeError) {
+        // Если не удалось декодировать как сжатый формат, пробуем PCM
+        console.debug("[Conversation] Not a compressed format, trying PCM", decodeError);
+      }
+
+      // Пробуем декодировать как PCM 16-bit
+      const possibleSampleRates = [24000, 22050, 44100, 16000];
+      const bytesPerSample = 2; // 16-bit PCM
+      const numSamples = buffer.byteLength / bytesPerSample;
+      
+      if (numSamples <= 0 || !Number.isInteger(numSamples)) {
+        console.error("[Conversation] Invalid PCM data size", {
+          bufferSize: buffer.byteLength,
+          numSamples
+        });
+        return;
+      }
+      
+      // Пробуем декодировать как PCM с разными sample rates
+      let audioBuffer: AudioBuffer | null = null;
+      let usedSampleRate = 24000;
+      
+      for (const sampleRate of possibleSampleRates) {
+        try {
+          audioBuffer = context.createBuffer(1, numSamples, sampleRate);
+          const channelData = audioBuffer.getChannelData(0);
+          
+          // Конвертируем 16-bit PCM в Float32Array
+          const int16Array = new Int16Array(buffer);
+          for (let i = 0; i < numSamples && i < channelData.length; i++) {
+            channelData[i] = int16Array[i] / 32768.0;
+          }
+          usedSampleRate = sampleRate;
+          break;
+        } catch (err) {
+          console.debug(`[Conversation] Failed to create buffer with ${sampleRate}Hz, trying next...`);
+        }
+      }
+      
+      if (!audioBuffer) {
+        console.error("[Conversation] Failed to create audio buffer with any sample rate");
+        return;
+      }
+
+      // Воспроизводим
+      const source = context.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(context.destination);
+      source.start(0);
+
+      console.info("[Conversation] Playing PCM audio chunk", {
+        samples: numSamples,
+        sampleRate: usedSampleRate,
+        duration: (numSamples / usedSampleRate).toFixed(2) + "s",
+        bufferSize: buffer.byteLength
+      });
+    } catch (err) {
+      console.error("[Conversation] Failed to play audio", err, {
+        bufferSize: buffer.byteLength
+      });
+    }
+  }, [getPlaybackAudioContext]);
+
+  // Обработка бинарных аудио чанков
+  const handleAgentAudioChunk = useCallback((audioData: ArrayBuffer) => {
+    playPCMAudio(audioData);
+  }, [playPCMAudio]);
+
+  // Обработка base64 аудио
+  const handleAgentAudioBase64 = useCallback((base64Audio: string) => {
+    try {
+      // Декодируем base64 в ArrayBuffer
+      const binaryString = atob(base64Audio);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      playPCMAudio(bytes.buffer);
+    } catch (err) {
+      console.error("[Conversation] Failed to decode base64 audio", err);
+    }
+  }, [playPCMAudio]);
 
   const stopRecording = useCallback(() => {
     processorNodeRef.current?.disconnect();
@@ -118,8 +250,18 @@ export function useConversation() {
       });
     }
 
+    if (playbackAudioContextRef.current) {
+      const context = playbackAudioContextRef.current;
+      playbackAudioContextRef.current = null;
+      context.close().catch((closeError) => {
+        console.warn("[Conversation] Playback AudioContext close error", closeError);
+      });
+    }
+
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     mediaStreamRef.current = null;
+    audioQueueRef.current = [];
+    isPlayingAudioRef.current = false;
   }, []);
 
   const closeWebsocket = useCallback(() => {
@@ -143,6 +285,8 @@ export function useConversation() {
       try {
         console.info("[Conversation] Opening WebSocket", { url: signedUrl });
         const socket = new WebSocket(signedUrl);
+        // Настраиваем для приема бинарных данных
+        socket.binaryType = "arraybuffer";
         websocketRef.current = socket;
 
         socket.onopen = () => {
@@ -175,10 +319,47 @@ export function useConversation() {
         };
 
         socket.onmessage = (event) => {
-          console.debug("[Conversation] Incoming message", event.data);
+          // Обработка бинарных данных (аудио)
+          if (event.data instanceof ArrayBuffer) {
+            console.info("[Conversation] Received binary audio data", {
+              size: event.data.byteLength,
+              type: "ArrayBuffer"
+            });
+            handleAgentAudioChunk(event.data);
+            return;
+          }
+          
+          // Также проверяем Blob (может быть обернут в Blob)
+          if (event.data instanceof Blob) {
+            console.info("[Conversation] Received Blob audio data", {
+              size: event.data.size,
+              type: event.data.type
+            });
+            event.data.arrayBuffer().then((buffer) => {
+              handleAgentAudioChunk(buffer);
+            });
+            return;
+          }
+          
+          // Логируем все входящие сообщения для отладки
+          console.log("[Conversation] Incoming message", {
+            data: event.data,
+            type: typeof event.data,
+            length: typeof event.data === "string" ? event.data.length : "N/A"
+          });
+          
           if (typeof event.data === "string") {
             try {
               const payload = JSON.parse(event.data);
+              
+              // Логируем все типы сообщений для отладки
+              console.log("[Conversation] Parsed payload", {
+              type: payload.type,
+              keys: Object.keys(payload),
+              hasAudio: !!(payload.audio || payload.agent_audio_chunk || payload.audio_chunk),
+              fullPayload: payload
+            });
+              
               if (payload.type === "conversation_initiation_metadata") {
                 console.info("[Conversation] Conversation metadata", payload);
               } else if (payload.type === "ping" && payload.ping_event?.event_id) {
@@ -189,17 +370,91 @@ export function useConversation() {
                 console.debug("[Conversation] Responding with pong", pong);
                 socket.send(JSON.stringify(pong));
               } else if (payload.type === "agent_response" || payload.type === "response") {
-                appendMessage({
-                  speaker: "agent",
-                  text: payload.text ?? payload.response ?? JSON.stringify(payload),
-                  receivedAt: Date.now()
-                });
-              } else if (payload.type === "transcript" || payload.type === "user_transcript") {
-                appendMessage({
-                  speaker: "user",
-                  text: payload.text ?? payload.transcript ?? JSON.stringify(payload),
-                  receivedAt: Date.now()
-                });
+                // Извлекаем текст из agent_response_event.agent_response или других возможных полей
+                const agentText = payload.agent_response_event?.agent_response 
+                  ?? payload.agent_response 
+                  ?? payload.text 
+                  ?? payload.response 
+                  ?? "";
+                
+                if (agentText) {
+                  appendMessage({
+                    speaker: "agent",
+                    text: agentText,
+                    receivedAt: Date.now()
+                  });
+                }
+                
+                // Проверяем, есть ли аудио в этом же событии
+                const audioInResponse = payload.agent_response_event?.audio
+                  ?? payload.agent_response_event?.audio_chunk
+                  ?? payload.audio
+                  ?? payload.audio_chunk;
+                
+                if (audioInResponse && typeof audioInResponse === "string") {
+                  console.info("[Conversation] Found audio in agent_response", {
+                    audioLength: audioInResponse.length
+                  });
+                  handleAgentAudioBase64(audioInResponse);
+                }
+              } else if (payload.type === "audio") {
+                // Обработка аудио в base64 формате из audio_event
+                const audioBase64 = payload.audio_event?.audio_base_64
+                  ?? payload.audio_event?.audio_base64
+                  ?? payload.audio_event?.audio
+                  ?? payload.audio 
+                  ?? payload.agent_audio_chunk 
+                  ?? payload.audio_chunk
+                  ?? payload.data;
+                
+                if (audioBase64 && typeof audioBase64 === "string") {
+                  console.info("[Conversation] Received base64 audio from audio_event", {
+                    type: payload.type,
+                    length: audioBase64.length,
+                    eventId: payload.audio_event?.event_id
+                  });
+                  handleAgentAudioBase64(audioBase64);
+                } else {
+                  console.warn("[Conversation] Audio event received but no audio data found", {
+                    payloadKeys: Object.keys(payload),
+                    audioEventKeys: payload.audio_event ? Object.keys(payload.audio_event) : null
+                  });
+                }
+              } else if (payload.type === "agent_audio_chunk" || payload.type === "audio_chunk") {
+                // Обработка других форматов аудио
+                const audioBase64 = payload.agent_audio_chunk 
+                  ?? payload.audio_chunk
+                  ?? payload.data;
+                
+                if (audioBase64 && typeof audioBase64 === "string") {
+                  console.info("[Conversation] Received base64 audio", {
+                    type: payload.type,
+                    length: audioBase64.length
+                  });
+                  handleAgentAudioBase64(audioBase64);
+                }
+              } else if (payload.audio_chunk || payload.agent_audio) {
+                // Проверяем другие возможные поля с аудио
+                const audioData = payload.audio_chunk ?? payload.agent_audio;
+                if (typeof audioData === "string") {
+                  console.info("[Conversation] Found audio in payload", Object.keys(payload));
+                  handleAgentAudioBase64(audioData);
+                }
+              } else if (payload.type === "user_transcription" || payload.type === "transcript" || payload.type === "user_transcript") {
+                // Извлекаем текст из user_transcription_event.user_transcript или других возможных полей
+                const userText = payload.user_transcription_event?.user_transcript 
+                  ?? payload.user_transcript 
+                  ?? payload.transcript 
+                  ?? payload.text 
+                  ?? "";
+                
+                if (userText) {
+                  appendMessage({
+                    speaker: "user",
+                    text: userText,
+                    receivedAt: Date.now()
+                  });
+                }
               } else if (payload.type === "error") {
                 setError(payload.message ?? "Error from ElevenLabs conversation");
               } else {
@@ -239,7 +494,7 @@ export function useConversation() {
         reject(err);
       }
     });
-  }, [appendMessage]);
+  }, [appendMessage, handleAgentAudioChunk, handleAgentAudioBase64]);
 
   const startStreamingAudio = useCallback(async () => {
     if (!websocketRef.current) {
@@ -285,7 +540,10 @@ export function useConversation() {
 
       const downsampled = downsampleBuffer(inputBuffer, audioContext.sampleRate, TARGET_SAMPLE_RATE);
       const pcmData = floatTo16BitPCM(downsampled);
-      const audioChunk = arrayBufferToBase64(pcmData.buffer);
+      // Создаем новый ArrayBuffer для совместимости типов
+      const bufferSlice = new ArrayBuffer(pcmData.byteLength);
+      new Uint8Array(bufferSlice).set(new Uint8Array(pcmData.buffer, pcmData.byteOffset, pcmData.byteLength));
+      const audioChunk = arrayBufferToBase64(bufferSlice);
 
       if (chunkCounter % 10 === 0) {
         console.debug("[Conversation] Sending audio chunk", {

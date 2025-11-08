@@ -162,16 +162,47 @@ button:hover:not(:disabled) {
   border-radius: 14px;
   max-width: 85%;
   line-height: 1.4;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.message-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.2rem;
+}
+
+.speaker-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.8;
+}
+
+.message-text {
+  word-wrap: break-word;
 }
 
 .bubble.agent {
   background: rgba(59, 130, 246, 0.25);
   align-self: flex-start;
+  border-left: 3px solid rgba(59, 130, 246, 0.6);
+}
+
+.bubble.agent .speaker-label {
+  color: #60a5fa;
 }
 
 .bubble.user {
   background: rgba(16, 185, 129, 0.22);
   align-self: flex-end;
+  border-right: 3px solid rgba(16, 185, 129, 0.6);
+}
+
+.bubble.user .speaker-label {
+  color: #34d399;
 }
 
 .bubble.system {

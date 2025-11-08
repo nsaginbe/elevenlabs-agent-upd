@@ -148,7 +148,12 @@ export default function App() {
             ) : (
               messages.map((message) => (
                 <div key={message.receivedAt + message.text} className={`bubble ${message.speaker}`}>
-                  <span>{message.text}</span>
+                  <div className="message-header">
+                    <span className="speaker-label">
+                      {message.speaker === "agent" ? "ИИ" : "Вы"}
+                    </span>
+                  </div>
+                  <span className="message-text">{message.text}</span>
                 </div>
               ))
             )}
