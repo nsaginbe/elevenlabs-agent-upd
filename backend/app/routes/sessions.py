@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..analysis_service import analyse_conversation, get_openai_client
 from ..database import get_db, engine
 from ..models import TrainingSession, create_tables
-from ..prompts import build_session_prompt
+from ..prompts import get_system_prompt
 from ..schemas import (
     CompleteSessionRequest,
     StartSessionResponse,
@@ -35,10 +35,7 @@ def create_session(
         payload.manager_name,
         payload.difficulty_level or "auto",
     )
-    session_prompt = build_session_prompt(
-        company_description=payload.company_description,
-        difficulty_level=payload.difficulty_level,
-    )
+    session_prompt = get_system_prompt()
 
     try:
         (
@@ -48,9 +45,10 @@ def create_session(
             overrides,
             dynamic_variables,
         ) = elevenlabs_service.create_conversation_session(
-            company_description=payload.company_description,
+            product_description=payload.product_description,
             difficulty_level=payload.difficulty_level,
             system_prompt=session_prompt,
+            first_message=payload.first_message,
         )
     except Exception as exc:
         logger.exception("Failed to obtain ElevenLabs signed WS URL")
@@ -69,8 +67,9 @@ def create_session(
 
     training_session = TrainingSession(
         manager_name=payload.manager_name,
-        company_description=payload.company_description,
+        product_description=payload.product_description,
         difficulty_level=payload.difficulty_level,
+        first_message=payload.first_message,
         session_system_prompt=session_prompt,
         signed_ws_url=signed_ws_url,
         conversation_id=conversation_id,
@@ -86,8 +85,7 @@ def create_session(
         conversation_id=conversation_id,
         session_system_prompt=session_prompt,
         conversation_config_override=overrides,
-        # dynamic_variables=dynamic_variables or None,
-        dynamic_variables=None,
+        dynamic_variables=dynamic_variables or None,
     )
 
     return response_payload

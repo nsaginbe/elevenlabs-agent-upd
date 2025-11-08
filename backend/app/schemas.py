@@ -7,14 +7,16 @@ from pydantic import BaseModel
 
 
 class TrainerSettings(BaseModel):
-    company_description: Optional[str] = None
+    product_description: Optional[str] = None
     difficulty_level: Optional[str] = None
+    first_message: Optional[str] = None
 
 
 class TrainingSessionCreate(BaseModel):
     manager_name: str
-    company_description: Optional[str] = None
+    product_description: Optional[str] = None
     difficulty_level: Optional[str] = None
+    first_message: Optional[str] = None
 
 
 class TrainingSessionResponse(BaseModel):
@@ -27,8 +29,9 @@ class TrainingSessionResponse(BaseModel):
     score: Optional[float]
     feedback: Optional[str]
     status: str
-    company_description: Optional[str] = None
+    product_description: Optional[str] = None
     difficulty_level: Optional[str] = None
+    first_message: Optional[str] = None
     session_system_prompt: Optional[str] = None
     signed_ws_url: Optional[str] = None
     conversation_id: Optional[str] = None

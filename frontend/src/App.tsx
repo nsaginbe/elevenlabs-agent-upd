@@ -13,8 +13,9 @@ const difficultyOptions: DifficultyLevel[] = [
 
 const formDefaults: StartSessionForm = {
   manager_name: "",
-  company_description: "",
-  difficulty_level: ""
+  product_description: "",
+  difficulty_level: "",
+  first_message: ""
 };
 
 export default function App() {
@@ -72,9 +73,9 @@ export default function App() {
               <textarea
                 rows={4}
                 placeholder="Например: Платформа автоматизации лидов через ИИ-чатботов"
-                value={form.company_description}
+                value={form.product_description}
                 onChange={(event) =>
-                  setForm((prev) => ({ ...prev, company_description: event.target.value }))
+                  setForm((prev) => ({ ...prev, product_description: event.target.value }))
                 }
               />
             </label>
@@ -96,6 +97,18 @@ export default function App() {
                   </option>
                 ))}
               </select>
+            </label>
+
+            <label>
+              Первое сообщение (опционально)
+              <input
+                type="text"
+                placeholder="Например: Привет! Как дела?"
+                value={form.first_message}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, first_message: event.target.value }))
+                }
+              />
             </label>
 
             <div className="form-actions">

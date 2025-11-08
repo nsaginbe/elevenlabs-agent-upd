@@ -24,8 +24,8 @@ BASE_SYSTEM_PROMPT = dedent(
 
     Динамические параметры
     Перед началом разговора система получает два параметра:
-    1. Описание продукта {product_description} — вводится менеджером вручную.
-    2. Уровень сложности {difficulty_level} — выбирается из выпадающего списка.
+    1. Описание продукта {{product_description}} — вводится менеджером вручную.
+    2. Уровень сложности {{difficulty_level}} — выбирается из выпадающего списка.
 
     Используй оба параметра в поведении клиента:
     - Ориентируй вопросы и уточнения именно на описанный продукт (выгоды, применение, ROI, риски).
@@ -111,20 +111,10 @@ BASE_SYSTEM_PROMPT = dedent(
 )
 
 
-def build_session_prompt(
-    *,
-    company_description: str | None,
-    difficulty_level: str | None,
-) -> str:
-    description_part = (
-        f"\n\nОписание продукта: {company_description.strip()}"
-        if company_description
-        else ""
-    )
-    difficulty_part = (
-        f"\nТекущий уровень сложности: {difficulty_level.strip()}"
-        if difficulty_level
-        else "\nТекущий уровень сложности: Средний"
-    )
-    return BASE_SYSTEM_PROMPT + description_part + difficulty_part
+# TODO: get system prompt from ElevenLabs
+def get_system_prompt() -> str:
+    return BASE_SYSTEM_PROMPT
 
+# def get_system_prompt() -> str:
+#     agent = client.conversational_ai.agents.get(agent_id=agent_id)
+#     return agent.conversation_config.agent.prompt.prompt

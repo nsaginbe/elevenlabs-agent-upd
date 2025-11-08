@@ -12,6 +12,7 @@ load_dotenv()
 
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 ELEVENLABS_AGENT_ID = os.getenv("ELEVENLABS_AGENT_ID")
+ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID")
 
 
 logger = logging.getLogger("moonai.elevenlabs")
@@ -19,30 +20,6 @@ logger = logging.getLogger("moonai.elevenlabs")
 
 class ElevenLabsError(RuntimeError):
     """Raised when ElevenLabs API requests fail."""
-
-
-def build_conversation_override(
-    company_description: str | None,
-    difficulty_level: str | None,
-    system_prompt: str,
-) -> Dict[str, Any]:
-    prompt_sections = [system_prompt]
-    if company_description:
-        prompt_sections.append(
-            f"Product context: {company_description.strip()}"
-        )
-    if difficulty_level:
-        prompt_sections.append(
-            f"Difficulty level: {difficulty_level.strip()}"
-        )
-
-    prompt_text = "\n\n".join(section for section in prompt_sections if section)
-
-    return {
-        "agent": {
-            "prompt": {"prompt": prompt_text},
-        }
-    }
 
 
 _elevenlabs_client: ElevenLabs | None = None
@@ -65,24 +42,17 @@ def request_signed_ws_url(*, agent_id: str) -> Tuple[str | None, str]:
     )
 
     signed_url = response.signed_url
-    conversation_id = None
-
-    if hasattr(response, "model_extra") and response.model_extra:
-        conversation_id = response.model_extra.get("conversation_id")
-
-    if not signed_url:
-        raise ElevenLabsError("Signed URL missing from ElevenLabs response")
+    conversation_id = signed_url[signed_url.find("conversation_id=")+len("conversation_id="):]
 
     return conversation_id, signed_url
 
-
 def build_dynamic_variables(
-    company_description: str | None,
+    product_description: str | None,
     difficulty_level: str | None,
 ) -> Dict[str, Any]:
     variables: Dict[str, Any] = {}
-    if company_description:
-        variables["product_description"] = company_description.strip()
+    if product_description:
+        variables["product_description"] = product_description.strip()
     if difficulty_level:
         variables["difficulty_level"] = difficulty_level.strip()
     return variables
@@ -90,21 +60,34 @@ def build_dynamic_variables(
 
 def create_conversation_session(
     *,
-    company_description: str | None,
+    product_description: str | None,
     difficulty_level: str | None,
     system_prompt: str,
+    first_message: str | None = None,
 ) -> Tuple[str, str | None, str, Dict[str, Any], Dict[str, Any]]:
     agent_id = ELEVENLABS_AGENT_ID
-    overrides = build_conversation_override(
-        company_description=company_description,
+    overrides: Dict[str, Any] = {
+        "agent": {
+            "prompt": {
+                "prompt": system_prompt,
+            }
+        }
+    }
+    
+    # Add first_message if provided
+    if first_message:
+        overrides["agent"]["first_message"] = first_message
+    
+    # Add voice_id from environment if available
+    if ELEVENLABS_VOICE_ID:
+        overrides["tts"] = {
+            "voice_id": ELEVENLABS_VOICE_ID
+        }
+    
+    dynamic_variables = build_dynamic_variables(
+        product_description=product_description,
         difficulty_level=difficulty_level,
-        system_prompt=system_prompt,
     )
-    # dynamic_variables = build_dynamic_variables(
-    #     company_description=company_description,
-    #     difficulty_level=difficulty_level,
-    # )
-    dynamic_variables = None
 
     if not agent_id or not ELEVENLABS_API_KEY:
         logger.error("ElevenLabs credentials missing; cannot create conversation session")

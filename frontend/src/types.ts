@@ -10,8 +10,9 @@ export interface TrainingSession {
   score: number | null;
   feedback: string | null;
   status: string;
-  company_description: string | null;
+  product_description: string | null;
   difficulty_level: string | null;
+  first_message: string | null;
   session_system_prompt: string | null;
   signed_ws_url: string | null;
   conversation_id: string | null;
@@ -19,8 +20,9 @@ export interface TrainingSession {
 
 export interface StartSessionForm {
   manager_name: string;
-  company_description: string;
+  product_description: string;
   difficulty_level: DifficultyLevel;
+  first_message: string;
 }
 
 export interface ConversationMessage {
