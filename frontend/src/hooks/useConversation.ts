@@ -154,15 +154,16 @@ export function useConversation() {
               source_info: {
                 source: "python_sdk",
                 version: "2.22.0"
-              },
-              custom_llm_extra_body: null
+              }
             };
 
             if (conversation_config_override && Object.keys(conversation_config_override).length > 0) {
               initiationPayload.conversation_config_override = conversation_config_override;
             }
 
-            initiationPayload.dynamic_variables = dynamic_variables && Object.keys(dynamic_variables).length > 0 ? dynamic_variables : {};
+            if (dynamic_variables && Object.keys(dynamic_variables).length > 0) {
+              initiationPayload.dynamic_variables = dynamic_variables;
+            }
 
             console.info("[Conversation] Sending initiation payload", initiationPayload);
             socket.send(JSON.stringify(initiationPayload));

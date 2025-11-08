@@ -100,10 +100,11 @@ def create_conversation_session(
         difficulty_level=difficulty_level,
         system_prompt=system_prompt,
     )
-    dynamic_variables = build_dynamic_variables(
-        company_description=company_description,
-        difficulty_level=difficulty_level,
-    )
+    # dynamic_variables = build_dynamic_variables(
+    #     company_description=company_description,
+    #     difficulty_level=difficulty_level,
+    # )
+    dynamic_variables = None
 
     if not agent_id or not ELEVENLABS_API_KEY:
         logger.error("ElevenLabs credentials missing; cannot create conversation session")

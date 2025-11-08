@@ -86,7 +86,8 @@ def create_session(
         conversation_id=conversation_id,
         session_system_prompt=session_prompt,
         conversation_config_override=overrides,
-        dynamic_variables=dynamic_variables or None,
+        # dynamic_variables=dynamic_variables or None,
+        dynamic_variables=None,
     )
 
     return response_payload
