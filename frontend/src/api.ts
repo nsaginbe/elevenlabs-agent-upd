@@ -1,4 +1,4 @@
-import { StartSessionForm, StartSessionResult, TrainingSession } from "./types";
+import type { StartSessionForm, StartSessionResult, TrainingSession } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 

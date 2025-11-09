@@ -5,10 +5,10 @@ import {
   createTrainingSession
 } from "../api";
 import {
-  ConversationMessage,
-  StartSessionForm,
-  StartSessionResult,
-  TrainingSession
+  type ConversationMessage,
+  type StartSessionForm,
+  type StartSessionResult,
+  type TrainingSession
 } from "../types";
 
 type ConnectionStatus = "idle" | "connecting" | "connected" | "error" | "stopped";

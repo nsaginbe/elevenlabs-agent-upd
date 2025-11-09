@@ -1,7 +1,8 @@
-import { FormEvent, useState } from "react";
+import type { FormEvent } from "react";
+import { useState } from "react";
 
 import { useConversation } from "./hooks/useConversation";
-import { DifficultyLevel, StartSessionForm } from "./types";
+import type { DifficultyLevel, StartSessionForm } from "./types";
 
 const difficultyOptions: DifficultyLevel[] = [
   "",
