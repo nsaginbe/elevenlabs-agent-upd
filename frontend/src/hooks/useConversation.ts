@@ -502,17 +502,54 @@ export function useConversation() {
       return;
     }
 
+    // Check if mediaDevices API is available
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      const errorMsg = window.location.protocol === "http:" 
+        ? "Доступ к микрофону требует HTTPS соединения. Пожалуйста, используйте HTTPS для доступа к приложению."
+        : "Доступ к микрофону не поддерживается в вашем браузере или заблокирован настройками безопасности.";
+      console.error("[Conversation] MediaDevices API not available", {
+        hasMediaDevices: !!navigator.mediaDevices,
+        hasGetUserMedia: !!(navigator.mediaDevices?.getUserMedia),
+        protocol: window.location.protocol,
+        isSecureContext: window.isSecureContext
+      });
+      setError(errorMsg);
+      setConnectionStatus("error");
+      throw new Error(errorMsg);
+    }
+
     console.info("[Conversation] Requesting microphone access");
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        channelCount: 1,
-        sampleRate: TARGET_SAMPLE_RATE,
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          sampleRate: TARGET_SAMPLE_RATE,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+      mediaStreamRef.current = stream;
+    } catch (err) {
+      const error = err as Error;
+      console.error("[Conversation] Failed to get user media", error);
+      let errorMsg = "Не удалось получить доступ к микрофону.";
+      
+      if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+        errorMsg = "Доступ к микрофону запрещен. Пожалуйста, разрешите использование микрофона в настройках браузера.";
+      } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+        errorMsg = "Микрофон не найден. Убедитесь, что микрофон подключен и доступен.";
+      } else if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+        errorMsg = "Микрофон занят другим приложением. Закройте другие приложения, использующие микрофон.";
+      } else if (window.location.protocol === "http:") {
+        errorMsg = "Доступ к микрофону требует HTTPS соединения. Пожалуйста, используйте HTTPS для доступа к приложению.";
       }
-    });
-    mediaStreamRef.current = stream;
+      
+      setError(errorMsg);
+      setConnectionStatus("error");
+      throw error;
+    }
 
     const audioContext = createAudioContext();
     audioContextRef.current = audioContext;
