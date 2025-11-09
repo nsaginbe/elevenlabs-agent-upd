@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import Tuple
 
@@ -43,20 +44,36 @@ def analyse_conversation(
     conversation_log: str,
     session_system_prompt: str,
 ) -> Tuple[ConversationAnalysis, str]:
+    logger = logging.getLogger("moonai.analysis")
+    
     messages = _build_analysis_prompt(
         system_prompt=session_system_prompt, conversation_log=conversation_log
     )
 
-    response = client.chat.completions.create(
-        model=OPENAI_MODEL,
-        messages=messages,
-        temperature=0.2,
-        response_format={"type": "json_object"},
-    )
+    try:
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=messages,
+            temperature=0.2,
+            response_format={"type": "json_object"},
+        )
 
-    content = response.choices[0].message.content or "{}"
-    data = ConversationAnalysis.model_validate_json(content)
-    return data, content
+        content = response.choices[0].message.content or "{}"
+        logger.debug("OpenAI response content length: %d", len(content))
+        
+        try:
+            data = ConversationAnalysis.model_validate_json(content)
+            return data, content
+        except Exception as validation_error:
+            logger.error(
+                "Failed to validate OpenAI response: %s. Content: %s",
+                validation_error,
+                content[:500]
+            )
+            raise ValueError(f"Invalid analysis response format: {validation_error}") from validation_error
+    except Exception as exc:
+        logger.error("OpenAI API call failed: %s", exc)
+        raise
 
 
 def get_openai_client() -> OpenAI:

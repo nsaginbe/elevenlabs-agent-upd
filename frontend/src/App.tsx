@@ -186,16 +186,91 @@ export default function App() {
           <h2>Анализ разговора</h2>
           {analysis ? (
             <div className="analysis">
-              <p>
-                Оценка: <strong>{analysis.score ?? "—"}/10</strong>
-              </p>
-              <p>
-                Обратная связь: <span>{analysis.feedback ?? "—"}</span>
-              </p>
-              <details>
-                <summary>JSON отчёт</summary>
-                <pre>{analysis.ai_analysis}</pre>
-              </details>
+              {(() => {
+                let parsedAnalysis: {
+                  score?: number;
+                  strengths?: string[];
+                  areas_for_improvement?: string[];
+                  specific_feedback?: string;
+                  key_moments?: string[];
+                } | null = null;
+
+                if (analysis.ai_analysis) {
+                  try {
+                    parsedAnalysis = JSON.parse(analysis.ai_analysis);
+                  } catch (e) {
+                    // If parsing fails, show raw text
+                    console.warn("Failed to parse analysis JSON", e);
+                  }
+                }
+
+                return (
+                  <>
+                    <div className="analysis-score">
+                      <div className="score-circle">
+                        <span className="score-value">{analysis.score ?? parsedAnalysis?.score ?? "—"}</span>
+                        <span className="score-max">/10</span>
+                      </div>
+                    </div>
+
+                    {parsedAnalysis ? (
+                      <div className="analysis-details">
+                        {parsedAnalysis.strengths && parsedAnalysis.strengths.length > 0 && (
+                          <div className="analysis-section strengths">
+                            <h3>✅ Сильные стороны</h3>
+                            <ul>
+                              {parsedAnalysis.strengths.map((strength, idx) => (
+                                <li key={idx}>{strength}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {parsedAnalysis.areas_for_improvement && parsedAnalysis.areas_for_improvement.length > 0 && (
+                          <div className="analysis-section improvements">
+                            <h3>📈 Области для улучшения</h3>
+                            <ul>
+                              {parsedAnalysis.areas_for_improvement.map((area, idx) => (
+                                <li key={idx}>{area}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {parsedAnalysis.specific_feedback && (
+                          <div className="analysis-section feedback">
+                            <h3>💬 Детальная обратная связь</h3>
+                            <p>{parsedAnalysis.specific_feedback}</p>
+                          </div>
+                        )}
+
+                        {parsedAnalysis.key_moments && parsedAnalysis.key_moments.length > 0 && (
+                          <div className="analysis-section moments">
+                            <h3>⭐ Ключевые моменты</h3>
+                            <ul>
+                              {parsedAnalysis.key_moments.map((moment, idx) => (
+                                <li key={idx}>{moment}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="analysis-section feedback">
+                        <h3>💬 Обратная связь</h3>
+                        <p>{analysis.feedback ?? "—"}</p>
+                      </div>
+                    )}
+
+                    {analysis.ai_analysis && (
+                      <details className="raw-json">
+                        <summary>📄 Показать JSON отчёт</summary>
+                        <pre>{analysis.ai_analysis}</pre>
+                      </details>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           ) : (
             <p className="muted">Анализ появится после завершения разговора</p>

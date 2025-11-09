@@ -114,16 +114,23 @@ def complete_session(
     session.session_end = datetime.now(timezone.utc)
     session.status = "completed"
 
-    openai_client = get_openai_client()
-    analysis, raw_payload = analyse_conversation(
-        client=openai_client,
-        conversation_log=payload.conversation_log,
-        session_system_prompt=session.session_system_prompt or "",
-    )
+    try:
+        openai_client = get_openai_client()
+        analysis, raw_payload = analyse_conversation(
+            client=openai_client,
+            conversation_log=payload.conversation_log,
+            session_system_prompt=session.session_system_prompt or "",
+        )
 
-    session.ai_analysis = raw_payload
-    session.score = analysis.score
-    session.feedback = analysis.specific_feedback
+        session.ai_analysis = raw_payload
+        session.score = analysis.score
+        session.feedback = analysis.specific_feedback
+    except Exception as exc:
+        logger.exception("Failed to analyze conversation for session %s", session_id)
+        # Store error in analysis field but don't fail the request
+        session.ai_analysis = f"Analysis failed: {str(exc)}"
+        session.score = None
+        session.feedback = "Analysis service unavailable. Please try again later."
 
     db.add(session)
     db.commit()

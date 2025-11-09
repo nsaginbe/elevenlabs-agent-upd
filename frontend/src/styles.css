@@ -233,14 +233,160 @@ button:hover:not(:disabled) {
   gap: 0.25rem;
 }
 
-.analysis pre {
-  max-height: 220px;
+.analysis {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.analysis-score {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+.score-circle {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.25rem;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2));
+  border: 2px solid rgba(99, 102, 241, 0.5);
+  border-radius: 16px;
+  padding: 1.5rem 2.5rem;
+  min-width: 120px;
+}
+
+.score-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #a78bfa;
+  line-height: 1;
+}
+
+.score-max {
+  font-size: 1.25rem;
+  color: rgba(203, 213, 225, 0.7);
+  font-weight: 500;
+}
+
+.analysis-details {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.analysis-section {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 12px;
+  padding: 1.25rem;
+  border-left: 4px solid;
+  transition: all 0.2s ease;
+}
+
+.analysis-section:hover {
+  background: rgba(15, 23, 42, 0.75);
+  transform: translateX(2px);
+}
+
+.analysis-section.strengths {
+  border-left-color: #10b981;
+}
+
+.analysis-section.improvements {
+  border-left-color: #f59e0b;
+}
+
+.analysis-section.feedback {
+  border-left-color: #6366f1;
+}
+
+.analysis-section.moments {
+  border-left-color: #8b5cf6;
+}
+
+.analysis-section h3 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.analysis-section p {
+  margin: 0;
+  color: rgba(203, 213, 225, 0.9);
+  line-height: 1.6;
+}
+
+.analysis-section ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  list-style: none;
+}
+
+.analysis-section ul li {
+  color: rgba(203, 213, 225, 0.9);
+  line-height: 1.7;
+  margin-bottom: 0.5rem;
+  position: relative;
+  padding-left: 1.25rem;
+}
+
+.analysis-section ul li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: rgba(99, 102, 241, 0.6);
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+.analysis-section.strengths ul li::before {
+  color: #10b981;
+}
+
+.analysis-section.improvements ul li::before {
+  color: #f59e0b;
+}
+
+.analysis-section.moments ul li::before {
+  color: #8b5cf6;
+}
+
+.raw-json {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.raw-json summary {
+  cursor: pointer;
+  color: rgba(203, 213, 225, 0.7);
+  font-size: 0.9rem;
+  padding: 0.5rem;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.raw-json summary:hover {
+  background: rgba(99, 102, 241, 0.1);
+  color: rgba(203, 213, 225, 0.9);
+}
+
+.raw-json pre {
+  max-height: 300px;
   overflow-y: auto;
   background: rgba(15, 23, 42, 0.85);
   padding: 1rem;
   border-radius: 12px;
   border: 1px solid rgba(99, 102, 241, 0.35);
   color: #e2e8f0;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
 }
 
 .app-footer {
