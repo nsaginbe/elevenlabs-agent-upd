@@ -2,7 +2,7 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 
 import { useConversation } from "./hooks/useConversation";
-import type { DifficultyLevel, StartSessionForm } from "./types";
+import type { DifficultyLevel, ClientType, StartSessionForm } from "./types";
 
 const difficultyOptions: DifficultyLevel[] = [
   "",
@@ -12,10 +12,22 @@ const difficultyOptions: DifficultyLevel[] = [
   "Экспертный"
 ];
 
+const clientTypeOptions: ClientType[] = [
+  "",
+  "Дружелюбный",
+  "Скептик",
+  "Агрессивный",
+  "Безразличный",
+  "Энтузиаст",
+  "Рациональный",
+  "Пассивно-агрессивный"
+];
+
 const formDefaults: StartSessionForm = {
   manager_name: "",
   product_description: "",
   difficulty_level: "",
+  client_type: "",
   first_message: ""
 };
 
@@ -95,6 +107,25 @@ export default function App() {
                 {difficultyOptions.map((value) => (
                   <option key={value || "default"} value={value}>
                     {value || "Средний (по умолчанию)"}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Тип клиента
+              <select
+                value={form.client_type}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    client_type: event.target.value as ClientType
+                  }))
+                }
+              >
+                {clientTypeOptions.map((value) => (
+                  <option key={value || "default"} value={value}>
+                    {value || "Выберите тип клиента"}
                   </option>
                 ))}
               </select>

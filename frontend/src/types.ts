@@ -1,5 +1,7 @@
 export type DifficultyLevel = "Лёгкий" | "Средний" | "Сложный" | "Экспертный" | "";
 
+export type ClientType = "Дружелюбный" | "Скептик" | "Агрессивный" | "Безразличный" | "Энтузиаст" | "Рациональный" | "Пассивно-агрессивный" | "";
+
 export interface TrainingSession {
   id: number;
   manager_name: string;
@@ -12,6 +14,7 @@ export interface TrainingSession {
   status: string;
   product_description: string | null;
   difficulty_level: string | null;
+  client_type: string | null;
   first_message: string | null;
   session_system_prompt: string | null;
   signed_ws_url: string | null;
@@ -22,6 +25,7 @@ export interface StartSessionForm {
   manager_name: string;
   product_description: string;
   difficulty_level: DifficultyLevel;
+  client_type: ClientType;
   first_message: string;
 }
 

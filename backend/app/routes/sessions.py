@@ -47,6 +47,7 @@ def create_session(
         ) = elevenlabs_service.create_conversation_session(
             product_description=payload.product_description,
             difficulty_level=payload.difficulty_level,
+            client_type=payload.client_type,
             system_prompt=session_prompt,
             first_message=payload.first_message,
         )
@@ -69,6 +70,7 @@ def create_session(
         manager_name=payload.manager_name,
         product_description=payload.product_description,
         difficulty_level=payload.difficulty_level,
+        client_type=payload.client_type,
         first_message=payload.first_message,
         session_system_prompt=session_prompt,
         signed_ws_url=signed_ws_url,

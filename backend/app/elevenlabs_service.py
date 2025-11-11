@@ -49,12 +49,15 @@ def request_signed_ws_url(*, agent_id: str) -> Tuple[str | None, str]:
 def build_dynamic_variables(
     product_description: str | None,
     difficulty_level: str | None,
+    client_type: str | None,
 ) -> Dict[str, Any]:
     variables: Dict[str, Any] = {}
     if product_description:
         variables["product_description"] = product_description.strip()
     if difficulty_level:
         variables["difficulty_level"] = difficulty_level.strip()
+    if client_type:
+        variables["client_type"] = client_type.strip()
     return variables
 
 
@@ -62,6 +65,7 @@ def create_conversation_session(
     *,
     product_description: str | None,
     difficulty_level: str | None,
+    client_type: str | None,
     system_prompt: str,
     first_message: str | None = None,
 ) -> Tuple[str, str | None, str, Dict[str, Any], Dict[str, Any]]:
@@ -87,6 +91,7 @@ def create_conversation_session(
     dynamic_variables = build_dynamic_variables(
         product_description=product_description,
         difficulty_level=difficulty_level,
+        client_type=client_type,
     )
 
     if not agent_id or not ELEVENLABS_API_KEY:

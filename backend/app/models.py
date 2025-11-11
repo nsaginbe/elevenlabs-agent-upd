@@ -22,6 +22,7 @@ class TrainingSession(Base):
     status = Column(String, default="active")
     product_description = Column(Text, nullable=True)
     difficulty_level = Column(String, nullable=True)
+    client_type = Column(String, nullable=True)
     first_message = Column(Text, nullable=True)
     session_system_prompt = Column(Text, nullable=True)
     signed_ws_url = Column(Text, nullable=True)
