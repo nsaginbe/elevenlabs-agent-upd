@@ -40,8 +40,11 @@ services:
     environment:
       - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
     volumes:
-      - /etc/ssl/certs/nginx-selfsigned.crt:/etc/ssl/certs/nginx-selfsigned.crt:ro
-      - /etc/ssl/private/nginx-selfsigned.key:/etc/ssl/private/nginx-selfsigned.key:ro
+      # Let's Encrypt SSL certificates
+      - /etc/ssl/certs/nginx-ssl.crt:/etc/ssl/certs/nginx-ssl.crt:ro
+      - /etc/ssl/private/nginx-ssl.key:/etc/ssl/private/nginx-ssl.key:ro
+      # Certbot webroot for automatic renewal
+      - /var/www/certbot:/var/www/certbot:ro
     depends_on:
       backend:
         condition: service_healthy
