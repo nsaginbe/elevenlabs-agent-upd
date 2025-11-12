@@ -24,6 +24,10 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 
 const TARGET_SAMPLE_RATE = 16000;
 
+// Скорость воспроизведения голоса ИИ (1.0 = нормальная скорость, 0.7 = 70% от нормальной)
+// Можно настроить от 0.5 (очень медленно) до 1.0 (нормально) или выше для ускорения
+const AGENT_VOICE_PLAYBACK_RATE = 0.7;
+
 declare global {
   interface Window {
     webkitAudioContext?: typeof AudioContext;
@@ -180,12 +184,17 @@ export function useConversation() {
           // Создаем источник и воспроизводим
           const source = context.createBufferSource();
           source.buffer = audioBuffer;
+          
+          // Замедляем скорость воспроизведения
+          source.playbackRate.value = AGENT_VOICE_PLAYBACK_RATE;
+          
           source.connect(context.destination);
           source.start(startTime);
           currentAudioSourceRef.current = source;
 
-          // Обновляем время начала следующего чанка
-          nextAudioStartTimeRef.current = startTime + audioBuffer.duration;
+          // Обновляем время начала следующего чанка с учетом замедления
+          const adjustedDuration = audioBuffer.duration / source.playbackRate.value;
+          nextAudioStartTimeRef.current = startTime + adjustedDuration;
 
           // Когда чанк закончится, воспроизводим следующий
           source.onended = () => {
