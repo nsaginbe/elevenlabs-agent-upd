@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import { useConversation } from "./hooks/useConversation";
 import type { DifficultyLevel, ClientType, StartSessionForm } from "./types";
+import { SessionHistory } from "./components/SessionHistory";
 
 const difficultyOptions: DifficultyLevel[] = [
   "",
@@ -309,10 +310,14 @@ export default function App() {
           )}
         </section>
 
-        <section className="card">
-          <h2>Лог разговора (черновик)</h2>
-          <textarea readOnly rows={12} value={conversationLog} />
-        </section>
+        <div className="history-layout">
+          <section className="card conversation-log-card">
+            <h2>Лог разговора (черновик)</h2>
+            <textarea readOnly rows={12} value={conversationLog} />
+          </section>
+
+          <SessionHistory />
+        </div>
       </main>
 
       <footer className="app-footer">

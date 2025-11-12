@@ -42,3 +42,38 @@ export function completeTrainingSession(sessionId: number, conversationLog: stri
   });
 }
 
+export interface SessionHistoryFilters {
+  manager_name?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+}
+
+export interface SessionHistoryCountResponse {
+  count: number;
+}
+
+export function fetchSessionHistory(filters?: SessionHistoryFilters) {
+  const params = new URLSearchParams();
+  if (filters?.manager_name) params.append("manager_name", filters.manager_name);
+  if (filters?.status) params.append("status", filters.status);
+  if (filters?.limit) params.append("limit", filters.limit.toString());
+  if (filters?.offset) params.append("offset", filters.offset.toString());
+  if (filters?.sort_by) params.append("sort_by", filters.sort_by);
+  if (filters?.sort_order) params.append("sort_order", filters.sort_order);
+
+  const queryString = params.toString();
+  return request<TrainingSession[]>(`/api/sessions${queryString ? `?${queryString}` : ""}`);
+}
+
+export function fetchSessionHistoryCount(filters?: Pick<SessionHistoryFilters, "manager_name" | "status">) {
+  const params = new URLSearchParams();
+  if (filters?.manager_name) params.append("manager_name", filters.manager_name);
+  if (filters?.status) params.append("status", filters.status);
+
+  const queryString = params.toString();
+  return request<SessionHistoryCountResponse>(`/api/sessions/count${queryString ? `?${queryString}` : ""}`);
+}
+

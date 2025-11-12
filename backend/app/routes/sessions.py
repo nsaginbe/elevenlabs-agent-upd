@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import logging
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
+from sqlalchemy import desc, asc
 
 from ..analysis_service import analyse_conversation, get_openai_client
 from ..database import get_db, engine
@@ -91,6 +93,75 @@ def create_session(
     )
 
     return response_payload
+
+
+@router.get("", response_model=List[TrainingSessionResponse])
+def get_sessions_history(
+    manager_name: Optional[str] = Query(None, description="Filter by manager name"),
+    status: Optional[str] = Query(None, description="Filter by status (active, completed)"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of sessions to return"),
+    offset: int = Query(0, ge=0, description="Number of sessions to skip"),
+    sort_by: str = Query("session_start", description="Sort by field (session_start, score, manager_name)"),
+    sort_order: str = Query("desc", description="Sort order (asc, desc)"),
+    db: Session = Depends(get_db),
+):
+    """
+    Get session history with all information:
+    - Session pre-requisites (settings): product_description, difficulty_level, client_type, first_message, session_system_prompt
+    - Conversation chat: conversation_log
+    - Analysis results: ai_analysis, score, feedback
+    """
+    logger.info(
+        "Fetching sessions history (manager=%s, status=%s, limit=%d, offset=%d, sort_by=%s, sort_order=%s)",
+        manager_name or "all",
+        status or "all",
+        limit,
+        offset,
+        sort_by,
+        sort_order,
+    )
+    
+    query = db.query(TrainingSession)
+    
+    # Apply filters
+    if manager_name:
+        query = query.filter(TrainingSession.manager_name == manager_name)
+    if status:
+        query = query.filter(TrainingSession.status == status)
+    
+    # Apply sorting
+    sort_field = getattr(TrainingSession, sort_by, TrainingSession.session_start)
+    if sort_order.lower() == "asc":
+        query = query.order_by(asc(sort_field))
+    else:
+        query = query.order_by(desc(sort_field))
+    
+    # Apply pagination
+    sessions = query.offset(offset).limit(limit).all()
+    
+    logger.info("Found %d sessions", len(sessions))
+    return sessions
+
+
+@router.get("/count")
+def get_sessions_count(
+    manager_name: Optional[str] = Query(None, description="Filter by manager name"),
+    status: Optional[str] = Query(None, description="Filter by status (active, completed)"),
+    db: Session = Depends(get_db),
+):
+    """
+    Get total count of sessions matching the filters.
+    Useful for pagination on the frontend.
+    """
+    query = db.query(TrainingSession)
+    
+    if manager_name:
+        query = query.filter(TrainingSession.manager_name == manager_name)
+    if status:
+        query = query.filter(TrainingSession.status == status)
+    
+    count = query.count()
+    return {"count": count}
 
 
 @router.get("/{session_id}", response_model=TrainingSessionResponse)
