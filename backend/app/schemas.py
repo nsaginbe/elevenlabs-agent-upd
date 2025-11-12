@@ -21,6 +21,23 @@ class TrainingSessionCreate(BaseModel):
     first_message: Optional[str] = None
 
 
+class TrainingSessionUpdate(BaseModel):
+    manager_name: Optional[str] = None
+    product_description: Optional[str] = None
+    difficulty_level: Optional[str] = None
+    client_type: Optional[str] = None
+    first_message: Optional[str] = None
+    conversation_log: Optional[str] = None
+    ai_analysis: Optional[str] = None
+    score: Optional[float] = None
+    feedback: Optional[str] = None
+    status: Optional[str] = None
+    session_end: Optional[datetime] = None
+    session_system_prompt: Optional[str] = None
+    signed_ws_url: Optional[str] = None
+    conversation_id: Optional[str] = None
+
+
 class TrainingSessionResponse(BaseModel):
     id: int
     manager_name: str
