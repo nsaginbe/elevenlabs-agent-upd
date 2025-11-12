@@ -95,6 +95,8 @@ export function useConversation() {
   const gainNodeRef = useRef<GainNode | null>(null);
   const audioQueueRef = useRef<ArrayBuffer[]>([]);
   const isPlayingAudioRef = useRef(false);
+  const nextAudioStartTimeRef = useRef<number>(0);
+  const currentAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
   const resetConversation = useCallback(() => {
     setMessages([]);
@@ -114,8 +116,106 @@ export function useConversation() {
     return playbackAudioContextRef.current;
   }, []);
 
-  // Воспроизведение аудио из ArrayBuffer
-  const playPCMAudio = useCallback(async (audioData: ArrayBuffer | ArrayBufferLike) => {
+  // Обработка очереди аудио - воспроизводит чанки последовательно
+  const processAudioQueue = useCallback(async () => {
+    if (isPlayingAudioRef.current || audioQueueRef.current.length === 0) {
+      return;
+    }
+
+    const context = getPlaybackAudioContext();
+    await context.resume();
+    isPlayingAudioRef.current = true;
+
+    const playNext = () => {
+      if (audioQueueRef.current.length === 0) {
+        isPlayingAudioRef.current = false;
+        nextAudioStartTimeRef.current = 0;
+        return;
+      }
+
+      const buffer = audioQueueRef.current.shift()!;
+      
+      // Декодируем аудио
+      const decodeAndPlay = async () => {
+        try {
+          let audioBuffer: AudioBuffer | null = null;
+
+          // Сначала пробуем декодировать как сжатый аудио (MP3, AAC и т.д.)
+          try {
+            audioBuffer = await context.decodeAudioData(buffer.slice(0));
+          } catch (decodeError) {
+            // Если не удалось, пробуем PCM
+            const possibleSampleRates = [24000, 22050, 44100, 16000];
+            const bytesPerSample = 2; // 16-bit PCM
+            const numSamples = buffer.byteLength / bytesPerSample;
+            
+            if (numSamples > 0 && Number.isInteger(numSamples)) {
+              for (const sampleRate of possibleSampleRates) {
+                try {
+                  audioBuffer = context.createBuffer(1, numSamples, sampleRate);
+                  const channelData = audioBuffer.getChannelData(0);
+                  const int16Array = new Int16Array(buffer);
+                  for (let i = 0; i < numSamples && i < channelData.length; i++) {
+                    channelData[i] = int16Array[i] / 32768.0;
+                  }
+                  break;
+                } catch (err) {
+                  // Пробуем следующий sample rate
+                }
+              }
+            }
+          }
+
+          if (!audioBuffer) {
+            console.warn("[Conversation] Failed to decode audio chunk, skipping");
+            // Продолжаем со следующим чанком
+            setTimeout(() => playNext(), 10);
+            return;
+          }
+
+          // Вычисляем время начала воспроизведения
+          const currentTime = context.currentTime;
+          const startTime = Math.max(currentTime, nextAudioStartTimeRef.current);
+          
+          // Создаем источник и воспроизводим
+          const source = context.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(context.destination);
+          source.start(startTime);
+          currentAudioSourceRef.current = source;
+
+          // Обновляем время начала следующего чанка
+          nextAudioStartTimeRef.current = startTime + audioBuffer.duration;
+
+          // Когда чанк закончится, воспроизводим следующий
+          source.onended = () => {
+            currentAudioSourceRef.current = null;
+            // Небольшая задержка между чанками для плавности
+            setTimeout(() => {
+              playNext();
+            }, 10);
+          };
+
+          console.debug("[Conversation] Playing queued audio chunk", {
+            duration: audioBuffer.duration.toFixed(2) + "s",
+            queueLength: audioQueueRef.current.length,
+            startTime: startTime.toFixed(2)
+          });
+        } catch (err) {
+          console.error("[Conversation] Failed to decode/play audio chunk", err);
+          // Продолжаем со следующим чанком даже при ошибке
+          setTimeout(() => playNext(), 10);
+        }
+      };
+
+      decodeAndPlay();
+    };
+
+    playNext();
+  }, [getPlaybackAudioContext]);
+
+  // Добавление аудио в очередь
+  const addAudioToQueue = useCallback((audioData: ArrayBuffer | ArrayBufferLike) => {
     // Конвертируем в ArrayBuffer если нужно
     let buffer: ArrayBuffer;
     if (audioData instanceof ArrayBuffer) {
@@ -132,88 +232,22 @@ export function useConversation() {
       console.warn("[Conversation] Empty audio buffer received");
       return;
     }
-    
-    try {
-      const context = getPlaybackAudioContext();
-      await context.resume();
 
-      // Сначала пробуем декодировать как сжатый аудио (MP3, AAC и т.д.)
-      try {
-        const audioBuffer = await context.decodeAudioData(buffer.slice(0));
-        const source = context.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(context.destination);
-        source.start(0);
-        
-        console.info("[Conversation] Playing decoded audio (MP3/AAC/etc)", {
-          duration: audioBuffer.duration.toFixed(2) + "s",
-          sampleRate: audioBuffer.sampleRate,
-          channels: audioBuffer.numberOfChannels,
-          bufferSize: buffer.byteLength
-        });
-        return;
-      } catch (decodeError) {
-        // Если не удалось декодировать как сжатый формат, пробуем PCM
-        console.debug("[Conversation] Not a compressed format, trying PCM", decodeError);
-      }
+    // Добавляем в очередь
+    audioQueueRef.current.push(buffer);
+    console.debug("[Conversation] Added audio to queue", {
+      queueLength: audioQueueRef.current.length,
+      bufferSize: buffer.byteLength
+    });
 
-      // Пробуем декодировать как PCM 16-bit
-      const possibleSampleRates = [24000, 22050, 44100, 16000];
-      const bytesPerSample = 2; // 16-bit PCM
-      const numSamples = buffer.byteLength / bytesPerSample;
-      
-      if (numSamples <= 0 || !Number.isInteger(numSamples)) {
-        console.error("[Conversation] Invalid PCM data size", {
-          bufferSize: buffer.byteLength,
-          numSamples
-        });
-        return;
-      }
-      
-      // Пробуем декодировать как PCM с разными sample rates
-      let audioBuffer: AudioBuffer | null = null;
-      let usedSampleRate = 24000;
-      
-      for (const sampleRate of possibleSampleRates) {
-        try {
-          audioBuffer = context.createBuffer(1, numSamples, sampleRate);
-          const channelData = audioBuffer.getChannelData(0);
-          
-          // Конвертируем 16-bit PCM в Float32Array
-          const int16Array = new Int16Array(buffer);
-          for (let i = 0; i < numSamples && i < channelData.length; i++) {
-            channelData[i] = int16Array[i] / 32768.0;
-          }
-          usedSampleRate = sampleRate;
-          break;
-        } catch (err) {
-          console.debug(`[Conversation] Failed to create buffer with ${sampleRate}Hz, trying next...`);
-        }
-      }
-      
-      if (!audioBuffer) {
-        console.error("[Conversation] Failed to create audio buffer with any sample rate");
-        return;
-      }
+    // Запускаем обработку очереди если еще не воспроизводится
+    processAudioQueue();
+  }, [processAudioQueue]);
 
-      // Воспроизводим
-      const source = context.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(context.destination);
-      source.start(0);
-
-      console.info("[Conversation] Playing PCM audio chunk", {
-        samples: numSamples,
-        sampleRate: usedSampleRate,
-        duration: (numSamples / usedSampleRate).toFixed(2) + "s",
-        bufferSize: buffer.byteLength
-      });
-    } catch (err) {
-      console.error("[Conversation] Failed to play audio", err, {
-        bufferSize: buffer.byteLength
-      });
-    }
-  }, [getPlaybackAudioContext]);
+  // Воспроизведение аудио из ArrayBuffer (добавляет в очередь)
+  const playPCMAudio = useCallback(async (audioData: ArrayBuffer | ArrayBufferLike) => {
+    addAudioToQueue(audioData);
+  }, [addAudioToQueue]);
 
   // Обработка бинарных аудио чанков
   const handleAgentAudioChunk = useCallback((audioData: ArrayBuffer) => {
@@ -262,6 +296,9 @@ export function useConversation() {
     mediaStreamRef.current = null;
     audioQueueRef.current = [];
     isPlayingAudioRef.current = false;
+    currentAudioSourceRef.current?.stop();
+    currentAudioSourceRef.current = null;
+    nextAudioStartTimeRef.current = 0;
   }, []);
 
   const closeWebsocket = useCallback(() => {
