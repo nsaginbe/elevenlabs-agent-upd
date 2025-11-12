@@ -194,25 +194,37 @@ export default function App() {
 
           {sessionActive && (
             <p className="hint">
-              Включи микрофон при запросе браузера. После командного слова «Завершить» останови
-              запись и нажми «Снять анализ».
+              Включи микрофон при запросе браузера. Чтобы завершить разговор, нажмите кнопку "Завершить разговор" выше.
             </p>
           )}
 
-          <button
-            type="button"
-            className="accent"
-            disabled={!sessionData || isLoading}
-            onClick={async () => {
-              try {
-                await completeSession();
-              } catch (err) {
-                console.error(err);
-              }
-            }}
-          >
-            Снять анализ
-          </button>
+          {sessionData && !sessionActive && connectionStatus === "stopped" && !analysis && (
+            <div className="completion-section">
+              <p className="hint">
+                Разговор завершен. Нажмите кнопку ниже, чтобы завершить сессию и получить анализ разговора.
+              </p>
+              <button
+                type="button"
+                className="accent"
+                disabled={isLoading}
+                onClick={async () => {
+                  try {
+                    await completeSession();
+                  } catch (err) {
+                    console.error(err);
+                  }
+                }}
+              >
+                {isLoading ? "Завершение сессии и анализ..." : "Завершить сессию и получить анализ"}
+              </button>
+            </div>
+          )}
+
+          {sessionData && !sessionActive && connectionStatus === "stopped" && analysis && (
+            <p className="hint success">
+              Сессия завершена. Анализ доступен ниже.
+            </p>
+          )}
         </section>
 
         <section className="card">

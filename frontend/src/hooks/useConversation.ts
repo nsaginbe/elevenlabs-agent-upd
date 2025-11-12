@@ -640,6 +640,8 @@ export function useConversation() {
     console.info("[Conversation] Stopping session");
     stopRecording();
     closeWebsocket();
+    // Explicitly set status to stopped to ensure completion button appears
+    setConnectionStatus("stopped");
   }, [closeWebsocket, stopRecording]);
 
   const conversationLog = useMemo(
@@ -649,8 +651,19 @@ export function useConversation() {
 
   const completeSession = useCallback(async () => {
     if (!sessionData) {
-      return;
+      throw new Error("No active session to complete");
     }
+    
+    // Prevent analysis while session is still active
+    if (connectionStatus === "connected" || connectionStatus === "connecting") {
+      throw new Error("Cannot analyze conversation while session is still active. Please stop the session first.");
+    }
+    
+    // Check if we have any messages to analyze
+    if (messages.length === 0) {
+      throw new Error("Cannot analyze empty conversation. Please have a conversation first.");
+    }
+    
     console.info("[Conversation] Completing session", sessionData.session.id);
     setIsLoading(true);
     try {
@@ -673,7 +686,7 @@ export function useConversation() {
       console.info("[Conversation] Complete session finished");
       setIsLoading(false);
     }
-  }, [conversationLog, sessionData]);
+  }, [conversationLog, sessionData, connectionStatus, messages.length]);
 
   return {
     startSession,

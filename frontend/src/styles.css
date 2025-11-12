@@ -220,6 +220,21 @@ button:hover:not(:disabled) {
   color: rgba(148, 197, 255, 0.85);
 }
 
+.hint.success {
+  color: rgba(16, 185, 129, 0.9);
+}
+
+.completion-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
 .error {
   color: #fca5a5;
   margin: 0;
