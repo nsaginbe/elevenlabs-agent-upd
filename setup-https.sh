@@ -5,7 +5,7 @@
 set -e
 
 DOMAIN="moonaisales.app"
-EMAIL="admin@${DOMAIN}"  # Change this to your email
+EMAIL="nurgisasaginbek@gmail.com"  # Change this to your email
 
 echo "=== Setting up HTTPS for ${DOMAIN} ==="
 
