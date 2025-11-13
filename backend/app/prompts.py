@@ -1,7 +1,17 @@
 from __future__ import annotations
 
+import os
 from textwrap import dedent
+from elevenlabs import ElevenLabs
+from dotenv import load_dotenv
 
+
+load_dotenv()
+
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+ELEVENLABS_AGENT_ID = os.getenv("ELEVENLABS_AGENT_ID")
+
+client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
 
 BASE_SYSTEM_PROMPT = dedent(
     """
@@ -31,10 +41,10 @@ BASE_SYSTEM_PROMPT = dedent(
 )
 
 
-# TODO: get system prompt from ElevenLabs
-def get_system_prompt() -> str:
-    return BASE_SYSTEM_PROMPT
-
+# # TODO: get system prompt from ElevenLabs
 # def get_system_prompt() -> str:
-#     agent = client.conversational_ai.agents.get(agent_id=agent_id)
-#     return agent.conversation_config.agent.prompt.prompt
+#     return BASE_SYSTEM_PROMPT
+
+def get_system_prompt() -> str:
+    agent = client.conversational_ai.agents.get(agent_id=ELEVENLABS_AGENT_ID)
+    return agent.conversation_config.agent.prompt.prompt
