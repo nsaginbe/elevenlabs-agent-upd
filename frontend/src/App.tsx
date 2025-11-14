@@ -58,6 +58,15 @@ export default function App() {
 
   return (
     <div className="app-layout">
+      <a
+        href="http://142.93.96.216:8000/docs"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="settings-button"
+        title="Настройки API"
+      >
+        ⚙️ Settings
+      </a>
       <header className="app-header">
         <h1>MoonAI Voice Sales Trainer</h1>
         <p>
