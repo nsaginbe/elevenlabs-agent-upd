@@ -79,3 +79,5 @@ dmypy.json
 frontend/node_modules/
 
 frontend-old/
+
+system_prompt.txt

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from textwrap import dedent
 from elevenlabs import ElevenLabs
 from dotenv import load_dotenv
@@ -10,10 +11,11 @@ load_dotenv()
 
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 ELEVENLABS_AGENT_ID = os.getenv("ELEVENLABS_AGENT_ID")
+PROMPT_FILE = Path(__file__).parent.parent / "system_prompt.txt"
 
 client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
 
-BASE_SYSTEM_PROMPT = dedent(
+DEFAULT_SYSTEM_PROMPT = dedent(
     """
     Ты — руководитель или директор компании малого и среднего бизнеса
     Ты ведёшь деловой разговор с менеджером по продажам компании MoonAI.
@@ -41,10 +43,26 @@ BASE_SYSTEM_PROMPT = dedent(
 )
 
 
-# # TODO: get system prompt from ElevenLabs
-# def get_system_prompt() -> str:
-#     return BASE_SYSTEM_PROMPT
+def load_prompt_from_file() -> str:
+    if PROMPT_FILE.exists():
+        try:
+            return PROMPT_FILE.read_text(encoding="utf-8").strip()
+        except Exception:
+            return DEFAULT_SYSTEM_PROMPT
+    return DEFAULT_SYSTEM_PROMPT
+
+
+def save_prompt_to_file(prompt: str) -> None:
+    PROMPT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PROMPT_FILE.write_text(prompt, encoding="utf-8")
+
+
+def fetch_and_update_prompt() -> str:
+    agent = client.conversational_ai.agents.get(agent_id=ELEVENLABS_AGENT_ID)
+    prompt = agent.conversation_config.agent.prompt.prompt
+    save_prompt_to_file(prompt)
+    return prompt
+
 
 def get_system_prompt() -> str:
-    agent = client.conversational_ai.agents.get(agent_id=ELEVENLABS_AGENT_ID)
-    return agent.conversation_config.agent.prompt.prompt
+    return load_prompt_from_file()

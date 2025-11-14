@@ -6,7 +6,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import sessions
+from .routes import sessions, prompts
 
 
 logging.basicConfig(
@@ -38,6 +38,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(sessions.router)
+    app.include_router(prompts.router)
 
     return app
 
