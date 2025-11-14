@@ -57,7 +57,7 @@ export default function App() {
   );
 
   return (
-    <div className="app-layout">
+    <>
       <a
         href="http://142.93.96.216:8000/docs"
         target="_blank"
@@ -67,7 +67,8 @@ export default function App() {
       >
         ⚙️ Settings
       </a>
-      <header className="app-header">
+      <div className="app-layout">
+        <header className="app-header">
         <h1>MoonAI Voice Sales Trainer</h1>
         <p>
           Запусти тренировку с ИИ-клиентом ElevenLabs. Укажи продукт, уровень сложности и
@@ -347,7 +348,8 @@ export default function App() {
           backend (`uvicorn app.main:app --reload`) и фронтенд (`npm run dev`).
         </small>
       </footer>
-    </div>
+      </div>
+    </>
   );
 }
 
