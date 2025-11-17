@@ -20,9 +20,14 @@ from ..schemas import (
     TrainingSessionUpdate,
 )
 from .. import elevenlabs_service
+from .auth import get_current_user
 
 
-router = APIRouter(prefix="/api/sessions", tags=["sessions"])
+router = APIRouter(
+    prefix="/api/sessions",
+    tags=["sessions"],
+    dependencies=[Depends(get_current_user)],
+)
 logger = logging.getLogger("moonai.api.sessions")
 
 

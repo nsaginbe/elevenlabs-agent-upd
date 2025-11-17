@@ -6,7 +6,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import sessions, prompts
+from .routes import sessions, prompts, auth
 
 
 logging.basicConfig(
@@ -37,6 +37,7 @@ def create_app() -> FastAPI:
     def healthcheck():
         return {"status": "ok"}
 
+    app.include_router(auth.router)
     app.include_router(sessions.router)
     app.include_router(prompts.router)
 

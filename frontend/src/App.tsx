@@ -1,6 +1,7 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
 
+import { useAuth } from "./hooks/useAuth";
 import { useConversation } from "./hooks/useConversation";
 import type { DifficultyLevel, ClientType, StartSessionForm } from "./types";
 import { SessionHistory } from "./components/SessionHistory";
@@ -34,6 +35,16 @@ const formDefaults: StartSessionForm = {
 
 export default function App() {
   const [form, setForm] = useState<StartSessionForm>(formDefaults);
+  const [credentials, setCredentials] = useState({ username: "", password: "" });
+  const {
+    user,
+    login,
+    logout,
+    isAuthenticated,
+    isLoading: authLoading,
+    error: authError,
+    status: authStatus
+  } = useAuth();
   const {
     startSession,
     stopSession,
@@ -41,7 +52,7 @@ export default function App() {
     sessionData,
     messages,
     analysis,
-    isLoading,
+    isLoading: sessionLoading,
     connectionStatus,
     error,
     conversationLog
@@ -56,6 +67,71 @@ export default function App() {
     sessionData && (connectionStatus === "connected" || connectionStatus === "connecting")
   );
 
+  const handleLoginSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    try {
+      await login(credentials);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const authMessage =
+    authStatus === "loading"
+      ? "Проверяем авторизацию..."
+      : authStatus === "unauthenticated" && authError
+        ? authError
+        : null;
+
+  if (!isAuthenticated) {
+    return (
+      <div className="app-layout">
+        <header className="app-header">
+          <h1>MoonAI Voice Sales Trainer</h1>
+          <p>Войдите, чтобы запустить тренировку с ИИ-клиентом ElevenLabs.</p>
+        </header>
+
+        <main className="app-content">
+          <section className="card" style={{ maxWidth: "420px", margin: "0 auto" }}>
+            <h2>Вход</h2>
+            <form className="session-form" onSubmit={handleLoginSubmit}>
+              <label>
+                Имя пользователя
+                <input
+                  required
+                  autoComplete="username"
+                  value={credentials.username}
+                  onChange={(event) =>
+                    setCredentials((prev) => ({ ...prev, username: event.target.value }))
+                  }
+                />
+              </label>
+              <label>
+                Пароль
+                <input
+                  required
+                  type="password"
+                  autoComplete="current-password"
+                  value={credentials.password}
+                  onChange={(event) =>
+                    setCredentials((prev) => ({ ...prev, password: event.target.value }))
+                  }
+                />
+              </label>
+              <button type="submit" disabled={authLoading}>
+                {authLoading ? "Входим..." : "Войти"}
+              </button>
+              {authMessage && <p className="error">{authMessage}</p>}
+              <p className="muted">
+                Регистрация доступна только через Swagger UI (`/docs`) на backend.
+              </p>
+            </form>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <>
       <a
@@ -69,12 +145,22 @@ export default function App() {
       </a>
       <div className="app-layout">
         <header className="app-header">
-        <h1>MoonAI Voice Sales Trainer</h1>
-        <p>
-          Запусти тренировку с ИИ-клиентом ElevenLabs. Укажи продукт, уровень сложности и
-          начни реальный голосовой диалог.
-        </p>
-      </header>
+          <div className="header-row">
+            <div>
+              <h1>MoonAI Voice Sales Trainer</h1>
+              <p>
+                Запусти тренировку с ИИ-клиентом ElevenLabs. Укажи продукт, уровень сложности и начни
+                реальный голосовой диалог.
+              </p>
+            </div>
+            <div className="auth-info">
+              <span>👤 {user?.username}</span>
+              <button type="button" className="secondary" onClick={logout}>
+                Выйти
+              </button>
+            </div>
+          </div>
+        </header>
 
       <main className="app-content">
         <section className="card">
@@ -155,7 +241,7 @@ export default function App() {
             </label>
 
             <div className="form-actions">
-              <button type="submit" disabled={isLoading}>
+              <button type="submit" disabled={sessionLoading}>
                 {sessionActive ? "Перезапустить" : "Начать тренировку"}
               </button>
               <button
@@ -216,7 +302,7 @@ export default function App() {
               <button
                 type="button"
                 className="accent"
-                disabled={isLoading}
+                  disabled={sessionLoading}
                 onClick={async () => {
                   try {
                     await completeSession();
@@ -225,7 +311,7 @@ export default function App() {
                   }
                 }}
               >
-                {isLoading ? "Завершение сессии и анализ..." : "Завершить сессию и получить анализ"}
+                {sessionLoading ? "Завершение сессии и анализ..." : "Завершить сессию и получить анализ"}
               </button>
             </div>
           )}
@@ -344,8 +430,8 @@ export default function App() {
 
       <footer className="app-footer">
         <small>
-          Подготовлено на базе ElevenLabs Conversational AI и OpenAI. Настрой .env и запусти
-          backend (`uvicorn app.main:app --reload`) и фронтенд (`npm run dev`).
+          Подготовлено на базе ElevenLabs Conversational AI и OpenAI. Настрой .env и запусти backend
+          (`uvicorn app.main:app --reload`) и фронтенд (`npm run dev`).
         </small>
       </footer>
       </div>

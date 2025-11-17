@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import logging
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..prompts import fetch_and_update_prompt
+from .auth import get_current_user
 
-router = APIRouter(prefix="/api/prompts", tags=["prompts"])
+router = APIRouter(
+    prefix="/api/prompts",
+    tags=["prompts"],
+    dependencies=[Depends(get_current_user)],
+)
 logger = logging.getLogger("moonai.api.prompts")
 
 

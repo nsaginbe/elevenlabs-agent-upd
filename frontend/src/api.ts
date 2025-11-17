@@ -1,12 +1,25 @@
-import type { StartSessionForm, StartSessionResult, TrainingSession } from "./types";
+import { getAuthToken } from "./auth";
+import type {
+  LoginRequest,
+  StartSessionForm,
+  StartSessionResult,
+  TokenResponse,
+  TrainingSession,
+  User
+} from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
 async function request<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
+  const token = getAuthToken();
   const response = await fetch(`${API_BASE}${input}`, {
     mode: "cors",
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers ?? {})
+    },
     ...init
   });
 
@@ -75,5 +88,16 @@ export function fetchSessionHistoryCount(filters?: Pick<SessionHistoryFilters, "
 
   const queryString = params.toString();
   return request<SessionHistoryCountResponse>(`/api/sessions/count${queryString ? `?${queryString}` : ""}`);
+}
+
+export function login(credentials: LoginRequest) {
+  return request<TokenResponse>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify(credentials)
+  });
+}
+
+export function fetchCurrentUser() {
+  return request<User>("/api/auth/me");
 }
 
