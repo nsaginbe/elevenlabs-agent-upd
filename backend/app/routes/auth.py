@@ -25,13 +25,9 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 bearer_scheme = HTTPBearer(auto_error=False)
 
-SECRET_KEY = os.getenv("AUTH_SECRET_KEY")
+SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "secret")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
-
-if not SECRET_KEY:
-    raise RuntimeError("AUTH_SECRET_KEY environment variable must be set")
-
 
 create_tables(engine)
 
