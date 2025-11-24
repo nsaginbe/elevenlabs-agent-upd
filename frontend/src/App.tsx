@@ -27,7 +27,7 @@ const clientTypeOptions: ClientType[] = [
 
 const formDefaults: StartSessionForm = {
   manager_name: "",
-  product_description: "",
+  client_description: "",
   difficulty_level: "",
   client_type: "",
   first_message: ""
@@ -179,13 +179,13 @@ export default function App() {
             </label>
 
             <label>
-              Описание продукта
+              Описание клиента
               <textarea
                 rows={4}
-                placeholder="Например: Платформа автоматизации лидов через ИИ-чатботов"
-                value={form.product_description}
+                placeholder="Например: Руководитель детского сада"
+                value={form.client_description}
                 onChange={(event) =>
-                  setForm((prev) => ({ ...prev, product_description: event.target.value }))
+                  setForm((prev) => ({ ...prev, client_description: event.target.value }))
                 }
               />
             </label>

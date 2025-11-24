@@ -12,7 +12,7 @@ export interface TrainingSession {
   score: number | null;
   feedback: string | null;
   status: string;
-  product_description: string | null;
+  client_description: string | null;
   difficulty_level: string | null;
   client_type: string | null;
   first_message: string | null;
@@ -23,7 +23,7 @@ export interface TrainingSession {
 
 export interface StartSessionForm {
   manager_name: string;
-  product_description: string;
+  client_description: string;
   difficulty_level: DifficultyLevel;
   client_type: ClientType;
   first_message: string;

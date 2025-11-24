@@ -30,7 +30,7 @@ class TrainingSession(Base):
     score = Column(Float, nullable=True)
     feedback = Column(Text, nullable=True)
     status = Column(String, default="active")
-    product_description = Column(Text, nullable=True)
+    client_description = Column(Text, nullable=True)
     difficulty_level = Column(String, nullable=True)
     client_type = Column(String, nullable=True)
     first_message = Column(Text, nullable=True)

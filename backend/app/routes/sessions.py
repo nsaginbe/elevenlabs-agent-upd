@@ -54,11 +54,17 @@ def create_session(
                 overrides,
                 dynamic_variables,
             ) = elevenlabs_service.create_conversation_session(
-                product_description=payload.product_description,
+                client_description=payload.client_description,
                 difficulty_level=payload.difficulty_level,
                 client_type=payload.client_type,
                 system_prompt=session_prompt,
                 first_message=payload.first_message,
+            )
+        except elevenlabs_service.ElevenLabsError as exc:
+            logger.exception("ElevenLabs service error: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"ElevenLabs service error: {exc}",
             )
         except Exception as exc:
             logger.exception("Failed to obtain ElevenLabs signed WS URL")
@@ -77,7 +83,7 @@ def create_session(
 
         training_session = TrainingSession(
             manager_name=payload.manager_name,
-            product_description=payload.product_description,
+            client_description=payload.client_description,
             difficulty_level=payload.difficulty_level,
             client_type=payload.client_type,
             first_message=payload.first_message,
@@ -122,7 +128,7 @@ def get_sessions_history(
 ):
     """
     Get session history with all information:
-    - Session pre-requisites (settings): product_description, difficulty_level, client_type, first_message, session_system_prompt
+    - Session pre-requisites (settings): client_description, difficulty_level, client_type, first_message, session_system_prompt
     - Conversation chat: conversation_log
     - Analysis results: ai_analysis, score, feedback
     """

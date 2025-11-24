@@ -26,7 +26,7 @@ const TARGET_SAMPLE_RATE = 16000;
 
 // Скорость воспроизведения голоса ИИ (1.0 = нормальная скорость, 0.7 = 70% от нормальной)
 // Можно настроить от 0.5 (очень медленно) до 1.0 (нормально) или выше для ускорения
-const AGENT_VOICE_PLAYBACK_RATE = 0.7;
+const AGENT_VOICE_PLAYBACK_RATE = 0.65;
 
 declare global {
   interface Window {

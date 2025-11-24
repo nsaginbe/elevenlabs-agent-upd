@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 
 class TrainerSettings(BaseModel):
-    product_description: Optional[str] = None
+    client_description: Optional[str] = None
     difficulty_level: Optional[str] = None
     client_type: Optional[str] = None
     first_message: Optional[str] = None
@@ -15,7 +15,7 @@ class TrainerSettings(BaseModel):
 
 class TrainingSessionCreate(BaseModel):
     manager_name: str
-    product_description: Optional[str] = None
+    client_description: Optional[str] = None
     difficulty_level: Optional[str] = None
     client_type: Optional[str] = None
     first_message: Optional[str] = None
@@ -23,7 +23,7 @@ class TrainingSessionCreate(BaseModel):
 
 class TrainingSessionUpdate(BaseModel):
     manager_name: Optional[str] = None
-    product_description: Optional[str] = None
+    client_description: Optional[str] = None
     difficulty_level: Optional[str] = None
     client_type: Optional[str] = None
     first_message: Optional[str] = None
@@ -48,7 +48,7 @@ class TrainingSessionResponse(BaseModel):
     score: Optional[float]
     feedback: Optional[str]
     status: str
-    product_description: Optional[str] = None
+    client_description: Optional[str] = None
     difficulty_level: Optional[str] = None
     client_type: Optional[str] = None
     first_message: Optional[str] = None

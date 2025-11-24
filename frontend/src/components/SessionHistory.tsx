@@ -148,10 +148,10 @@ export function SessionHistory() {
                   <span>Тип клиента: {session.client_type || "—"}</span>
                   <span>Статус: {session.status}</span>
                 </div>
-                {session.product_description && (
+                {session.client_description && (
                   <div className="session-item-product">
-                    Продукт: {session.product_description.substring(0, 100)}
-                    {session.product_description.length > 100 ? "..." : ""}
+                    Продукт: {session.client_description.substring(0, 100)}
+                    {session.client_description.length > 100 ? "..." : ""}
                   </div>
                 )}
               </div>
@@ -191,7 +191,7 @@ export function SessionHistory() {
               </div>
               <div>
                 <strong>Продукт:</strong>
-                <span>{selectedHistorySession.product_description || "—"}</span>
+                <span>{selectedHistorySession.client_description || "—"}</span>
               </div>
               <div>
                 <strong>Уровень сложности:</strong>
