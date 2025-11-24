@@ -40,6 +40,7 @@ class TrainingSessionUpdate(BaseModel):
 
 class TrainingSessionResponse(BaseModel):
     id: int
+    user_id: int
     manager_name: str
     session_start: datetime
     session_end: Optional[datetime]

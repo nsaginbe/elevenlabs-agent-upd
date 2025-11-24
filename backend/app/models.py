@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Float, Integer, String, Text, UniqueConstraint
-from sqlalchemy.orm import declarative_base
+from sqlalchemy import Column, DateTime, Float, Integer, String, Text, UniqueConstraint, ForeignKey
+from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
 
@@ -22,6 +22,7 @@ class TrainingSession(Base):
     __tablename__ = "training_sessions"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     manager_name = Column(String, index=True, nullable=False)
     session_start = Column(DateTime, default=datetime.now(timezone.utc))
     session_end = Column(DateTime, nullable=True)
@@ -37,6 +38,9 @@ class TrainingSession(Base):
     session_system_prompt = Column(Text, nullable=True)
     signed_ws_url = Column(Text, nullable=True)
     conversation_id = Column(String, nullable=True)
+    
+    # Relationship to User
+    user = relationship("User", backref="training_sessions")
 
 
 def create_tables(engine) -> None:

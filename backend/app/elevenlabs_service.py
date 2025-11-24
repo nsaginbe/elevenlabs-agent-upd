@@ -139,11 +139,19 @@ def create_conversation_session(
         logger.warning("Agent validation skipped due to error (may not be critical): %s", exc)
 
     # Log the overrides structure for debugging
-    logger.debug(
+    logger.info(
         "Creating conversation session: agent_id=%s, overrides_keys=%s, dynamic_vars=%s",
         agent_id,
         list(overrides.keys()),
         list(dynamic_variables.keys()) if dynamic_variables else []
+    )
+    logger.debug(
+        "Conversation config override structure: %s",
+        overrides
+    )
+    logger.debug(
+        "Dynamic variables: %s",
+        dynamic_variables
     )
 
     conversation_id, signed_url = request_signed_ws_url(agent_id=agent_id)

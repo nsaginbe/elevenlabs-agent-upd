@@ -101,11 +101,13 @@ export function useConversation() {
   const isPlayingAudioRef = useRef(false);
   const nextAudioStartTimeRef = useRef<number>(0);
   const currentAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const conversationInitializedRef = useRef(false);
 
   const resetConversation = useCallback(() => {
     setMessages([]);
     setAnalysis(null);
     setError(null);
+    conversationInitializedRef.current = false;
   }, []);
 
   const appendMessage = useCallback((message: ConversationMessage) => {
@@ -355,7 +357,19 @@ export function useConversation() {
               initiationPayload.dynamic_variables = dynamic_variables;
             }
 
-            console.info("[Conversation] Sending initiation payload", initiationPayload);
+            console.info("[Conversation] Sending initiation payload", {
+              type: initiationPayload.type,
+              hasConfigOverride: !!initiationPayload.conversation_config_override,
+              hasDynamicVars: !!initiationPayload.dynamic_variables,
+              configOverrideKeys: initiationPayload.conversation_config_override 
+                ? Object.keys(initiationPayload.conversation_config_override) 
+                : [],
+              dynamicVarKeys: initiationPayload.dynamic_variables 
+                ? Object.keys(initiationPayload.dynamic_variables) 
+                : []
+            });
+            // Log full payload structure for debugging (without sensitive data)
+            console.debug("[Conversation] Full initiation payload structure", JSON.stringify(initiationPayload, null, 2));
             socket.send(JSON.stringify(initiationPayload));
           } catch (sendError) {
             console.error("[Conversation] Failed to send initiation payload", sendError);
@@ -408,6 +422,8 @@ export function useConversation() {
               
               if (payload.type === "conversation_initiation_metadata") {
                 console.info("[Conversation] Conversation metadata", payload);
+                // Mark conversation as initialized - safe to send audio now
+                conversationInitializedRef.current = true;
               } else if (payload.type === "ping" && payload.ping_event?.event_id) {
                 const pong = {
                   type: "pong",
@@ -528,10 +544,28 @@ export function useConversation() {
             reason: event.reason,
             wasClean: event.wasClean
           });
+          
+          // Provide more specific error messages
+          if (event.code === 1002) {
+            const errorMsg = `WebSocket protocol error (1002): ${event.reason || "The AI agent appears to be having technical issues. This may be due to:\n1. Invalid conversation_config_override structure\n2. Agent configuration issues\n3. ElevenLabs service problems\n\nPlease check:\n- Agent ID is correct and agent is active\n- conversation_config_override structure matches ElevenLabs API requirements\n- Backend logs for validation errors"}`;
+            console.error("[Conversation] WebSocket protocol error", {
+              code: event.code,
+              reason: event.reason,
+              wasClean: event.wasClean,
+              conversationInitialized: conversationInitializedRef.current
+            });
+            setError(errorMsg);
+          } else if (event.code === 1006) {
+            setError("WebSocket connection closed abnormally. This may indicate network issues or server problems.");
+          } else if (!event.wasClean && event.code !== 1000) {
+            setError(`WebSocket closed unexpectedly (code: ${event.code}): ${event.reason || "Unknown error"}`);
+          }
+          
           setConnectionStatus("stopped");
+          conversationInitializedRef.current = false;
           if (!settled) {
             settled = true;
-            reject(new Error("WebSocket closed before initialization"));
+            reject(new Error(`WebSocket closed before initialization: ${event.reason || `code ${event.code}`}`));
           }
         };
       } catch (err) {
@@ -613,6 +647,11 @@ export function useConversation() {
 
     processor.onaudioprocess = (event) => {
       if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      // Don't send audio until conversation is initialized
+      if (!conversationInitializedRef.current) {
         return;
       }
 

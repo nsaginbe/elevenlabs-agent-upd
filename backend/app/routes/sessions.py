@@ -10,7 +10,7 @@ from sqlalchemy import desc, asc
 
 from ..analysis_service import analyse_conversation, get_openai_client
 from ..database import get_db, engine
-from ..models import TrainingSession, create_tables
+from ..models import TrainingSession, User, create_tables
 from ..prompts import get_system_prompt
 from ..schemas import (
     CompleteSessionRequest,
@@ -36,7 +36,9 @@ create_tables(engine)
 
 @router.post("", response_model=StartSessionResponse)
 def create_session(
-    payload: TrainingSessionCreate, db: Session = Depends(get_db)
+    payload: TrainingSessionCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     try:
         logger.info(
@@ -82,6 +84,7 @@ def create_session(
         )
 
         training_session = TrainingSession(
+            user_id=current_user.id,
             manager_name=payload.manager_name,
             client_description=payload.client_description,
             difficulty_level=payload.difficulty_level,
@@ -124,6 +127,7 @@ def get_sessions_history(
     offset: int = Query(0, ge=0, description="Number of sessions to skip"),
     sort_by: str = Query("session_start", description="Sort by field (session_start, score, manager_name)"),
     sort_order: str = Query("desc", description="Sort order (asc, desc)"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -134,7 +138,8 @@ def get_sessions_history(
     """
     try:
         logger.info(
-            "Fetching sessions history (manager=%s, status=%s, limit=%d, offset=%d, sort_by=%s, sort_order=%s)",
+            "Fetching sessions history for user %s (manager=%s, status=%s, limit=%d, offset=%d, sort_by=%s, sort_order=%s)",
+            current_user.id,
             manager_name or "all",
             status or "all",
             limit,
@@ -143,7 +148,7 @@ def get_sessions_history(
             sort_order,
         )
         
-        query = db.query(TrainingSession)
+        query = db.query(TrainingSession).filter(TrainingSession.user_id == current_user.id)
         
         # Apply filters
         if manager_name:
@@ -180,6 +185,7 @@ def get_sessions_history(
 def get_sessions_count(
     manager_name: Optional[str] = Query(None, description="Filter by manager name"),
     status: Optional[str] = Query(None, description="Filter by status (active, completed)"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -187,7 +193,7 @@ def get_sessions_count(
     Useful for pagination on the frontend.
     """
     try:
-        query = db.query(TrainingSession)
+        query = db.query(TrainingSession).filter(TrainingSession.user_id == current_user.id)
         
         if manager_name:
             query = query.filter(TrainingSession.manager_name == manager_name)
@@ -205,13 +211,16 @@ def get_sessions_count(
 
 
 @router.delete("", response_model=dict)
-def delete_all_sessions(db: Session = Depends(get_db)):
+def delete_all_sessions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
-    Delete all training sessions from the database.
+    Delete all training sessions for the current user.
     """
     try:
-        logger.info("Deleting all training sessions")
-        deleted_count = db.query(TrainingSession).delete()
+        logger.info("Deleting all training sessions for user %s", current_user.id)
+        deleted_count = db.query(TrainingSession).filter(TrainingSession.user_id == current_user.id).delete()
         db.commit()
         
         logger.info("Successfully deleted %d training sessions", deleted_count)
@@ -229,10 +238,16 @@ def delete_all_sessions(db: Session = Depends(get_db)):
 
 
 @router.get("/{session_id}", response_model=TrainingSessionResponse)
-def get_session(session_id: int, db: Session = Depends(get_db)):
+def get_session(
+    session_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     session = db.get(TrainingSession, session_id)
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    if session.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this session")
     return session
 
 
@@ -240,6 +255,7 @@ def get_session(session_id: int, db: Session = Depends(get_db)):
 def update_session(
     session_id: int,
     payload: TrainingSessionUpdate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -252,6 +268,8 @@ def update_session(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
             )
+        if session.user_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this session")
 
         # Update only provided fields
         update_data = payload.model_dump(exclude_unset=True)
@@ -276,7 +294,11 @@ def update_session(
 
 
 @router.delete("/{session_id}", response_model=dict)
-def delete_session(session_id: int, db: Session = Depends(get_db)):
+def delete_session(
+    session_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Delete a single training session by ID.
     """
@@ -287,6 +309,8 @@ def delete_session(session_id: int, db: Session = Depends(get_db)):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
             )
+        if session.user_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this session")
 
         db.delete(session)
         db.commit()
@@ -308,12 +332,15 @@ def delete_session(session_id: int, db: Session = Depends(get_db)):
 def complete_session(
     session_id: int,
     payload: CompleteSessionRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     logger.info("Completing training session %s", session_id)
     session = db.get(TrainingSession, session_id)
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    if session.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this session")
 
     session.conversation_log = payload.conversation_log
     session.session_end = datetime.now(timezone.utc)
